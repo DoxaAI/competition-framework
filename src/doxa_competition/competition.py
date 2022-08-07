@@ -6,7 +6,7 @@ from doxa_competition.event import EventHandler
 from doxa_competition.event_handlers import (
     AgentEventHandler,
     EvaluationEventHandler,
-    EvaluationRequestHandler,
+    EvaluationRequestOutcomeHandler,
 )
 from doxa_competition.event_router import EventRouter
 
@@ -46,7 +46,7 @@ class Competition:
         self.driver = evaluation_driver
         self.extensions = extensions if extensions else []
         self.event_handlers = [
-            EvaluationRequestHandler(self.get_tag(), self.driver),
+            EvaluationRequestOutcomeHandler(self.get_tag(), self.driver),
             agent_event_handler,
             evaluation_event_handler,
         ] + self.extensions

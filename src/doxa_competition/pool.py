@@ -51,7 +51,7 @@ class EvaluationPool:
 
         # TODO: gracefully handle driver exceptions
 
-        print("The competition driver generated an error:", exception, flush=True)
+        raise exception
 
     def close(self):
         """Closes the pool."""
