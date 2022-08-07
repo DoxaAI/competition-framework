@@ -1,0 +1,23 @@
+[project]
+name = "doxa-competition"
+version = "0.0.1"
+authors = [
+  { name="Jeremy Lo Ying Ping", email="jeremyloyingping@gmail.com" },
+]
+description = "A framework for developing engaging online artificial intelligence competitions on DOXA."
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/DoxaAI/competition-framework"
+"Bug Tracker" = "https://github.com/DoxaAI/competition-framework/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
