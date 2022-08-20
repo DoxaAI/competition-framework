@@ -1,11 +1,52 @@
 import json
-from typing import List, Type
+import queue
+from datetime import datetime
+from typing import Dict, List
 
 import pulsar
 
-from doxa_competition.event import Event
-from doxa_competition.execution import EvaluationContext, Node
-from doxa_competition.utils import make_pulsar_client, send_pulsar_message
+from doxa_competition.events import EvaluationEvent
+from doxa_competition.execution import Node
+from doxa_competition.utils import send_pulsar_message
+
+
+class EvaluationContext:
+    """The evaluation context used in evaluation driver implementations."""
+
+    id: int
+    batch_id: int
+    queued_at: datetime
+    agents: List[str]
+    nodes: Dict[str, Node]
+    extra: dict
+
+    def __init__(
+        self,
+        id: int,
+        batch_id: int,
+        queued_at: datetime,
+        agents: List[str],
+        nodes: Dict[str, Node],
+        extra: dict = None,
+    ) -> None:
+        self.id = id
+        self.batch_id = batch_id
+        self.queued_at = queued_at
+        self.agents = agents
+        self.nodes = nodes
+        self.extra = extra if extra is not None else {}
+
+    def connect_to_nodes(self) -> None:
+        """Connects to Hearth nodes required for the evaluation as set up by Umpire."""
+
+        for node in self.nodes.values():
+            node.connect()
+
+    def release_nodes(self) -> None:
+        """Releases Hearth nodes once evaluation terminates."""
+
+        for node in self.nodes.values():
+            node.release()
 
 
 class EvaluationDriver:
@@ -23,21 +64,33 @@ class EvaluationDriver:
             f"persistent://public/default/competition-{self.competition_tag}-evaluation-events"
         )
 
-    def handle(self, event: Event, context: EvaluationContext):
+    def handle(self, context: EvaluationContext) -> None:
         """Handles the evaluation process according to the specific competition
         once Hearth nodes are properly set up.
 
         Args:
-            event (Event): The evaluation request event
+            event (EvaluationEvent): The evaluation request event.
             context (EvaluationContext): The evaluation context giving access to the nodes.
-
-        Raises:
-            NotImplementedError: _description_
         """
 
         raise NotImplementedError()
 
-    def _handle(self, event: Event):
+    def _make_context(self, event) -> EvaluationContext:
+        context = EvaluationContext(
+            id=event.body["evaluation"]["id"],
+            batch_id=event.body["evaluation"]["batch_id"],
+            queued_at=datetime.fromisoformat(event.body["evaluation"]["queued_at"]),
+            agents=event.body["evaluation"]["agents"],
+            nodes={
+                agent: Node(endpoint=node["endpoint"], auth_token=node["auth_token"])
+                for agent, node in event.body["nodes"].items()
+            },
+            extra=event.body["evaluation"].get("extra", {}),
+        )
+
+        return context
+
+    def _handle(self, event: EvaluationEvent) -> None:
         """The internal handler for evaluation requests, running in a separate process.
 
         This wraps the handle() method to be provided by the competition implementer,
@@ -47,43 +100,19 @@ class EvaluationDriver:
             event (Event): The evaluation request event
         """
 
-        # TODO: Use the information contained with the event
-        #       to request the creation of any number of Hearth nodes.
-        #       Place code in `execution.py`.
+        # create the evaluation context
+        context = self._make_context(event)
 
-        # TODO: Eventually, we may wish to support multiple bases.
-        nodes = self._setup_nodes()
+        # connect to the Hearth nodes
+        context.connect_to_nodes()
 
-        context = EvaluationContext()  # TODO: create this context properly
-
-        self.handle(event, context)
+        # call userland code to handle the evaluation
+        self.handle(context)
 
         # clean up Hearth node instances
-        self._release_nodes(nodes)
+        context.release_nodes()
 
-    def _setup_nodes(self) -> List[Node]:
-        """Sets up Hearth nodes as required to fulfil the requirements of the evaluation request.
-
-        Returns:
-            List[Node]: A list of newly initialised Hearth nodes.
-        """
-
-        # TODO: gRPC call(s) to setup Hearth nodes (eventually for some base and environment)
-
-        return []
-
-    def _release_nodes(self, nodes: List[Node]) -> None:
-        """Releases Hearth nodes once evaluation terminates.
-
-        Args:
-            nodes (List[Node]): A list of Hearth nodes.
-        """
-
-        # TODO: gRPC call(s) to clean up used nodes
-
-        pass
-
-    def emit_evaluation_event(self, body: dict, properties: dict = None):
+    def emit_evaluation_event(self, body: dict, properties: dict = None) -> None:
         """Emits an evaluation event specific to the competition using
         the internal evaluation event producer available throughout the
         lifetime of the evaluation driver.
@@ -98,7 +127,7 @@ class EvaluationDriver:
             properties if properties is not None else {},
         )
 
-    def emit_event(self, topic_name: str, body: dict, properties: dict = None):
+    def emit_event(self, topic_name: str, body: dict, properties: dict = None) -> None:
         """Sends a Pulsar message. This should only be used for events other than
         evaluation events for which emit_evaluation_event() should be used.
 
@@ -107,6 +136,7 @@ class EvaluationDriver:
             body (dict): _description_
             properties (dict, optional): _description_. Defaults to None.
         """
+
         send_pulsar_message(
             client=self._pulsar_client,
             topic=f"persistent://public/default/competition-{self.competition_tag}-{topic_name}",
@@ -114,25 +144,7 @@ class EvaluationDriver:
             properties=properties if properties is not None else {},
         )
 
-    def teardown(self):
+    def teardown(self) -> None:
+        """Tears down the evaluation driver."""
+
         self._event_producer.close()
-
-
-def launch_driver(
-    driver: Type[EvaluationDriver], competition_tag: str, event: Event
-) -> None:
-    """Launches a competition evaluation driver to process an evaluation.
-
-    Args:
-        driver (Type[EvaluationDriver]): The competition evaluation driver to launch.
-        competition_tag (str): The competition tag.
-        event (Event): The evaluation request event.
-    """
-
-    d = driver(
-        competition_tag=competition_tag,
-        pulsar_client=make_pulsar_client(),
-    )
-
-    d._handle(event)
-    d.teardown()

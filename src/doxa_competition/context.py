@@ -1,20 +1,15 @@
 import pulsar
 
-from doxa_competition.pool import EvaluationPool
 from doxa_competition.utils import send_pulsar_message
 
 
 class CompetitionContext:
     competition_tag: str
     _pulsar_client: pulsar.Client
-    _pool: EvaluationPool
 
-    def __init__(
-        self, competition_tag: str, pulsar_client: pulsar.Client, pool: EvaluationPool
-    ) -> None:
+    def __init__(self, competition_tag: str, pulsar_client: pulsar.Client) -> None:
         self.competition_tag = competition_tag
         self._pulsar_client = pulsar_client
-        self._pool = pool
 
     def emit_event(self, topic: str, body: dict, properties: dict = None) -> None:
         """Sends a Pulsar message.

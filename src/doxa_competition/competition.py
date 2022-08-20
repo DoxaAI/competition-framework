@@ -3,11 +3,7 @@ from typing import List, Type
 from doxa_competition.context import CompetitionContext
 from doxa_competition.evaluation import EvaluationDriver
 from doxa_competition.event import EventHandler
-from doxa_competition.event_handlers import (
-    AgentEventHandler,
-    EvaluationEventHandler,
-    EvaluationRequestOutcomeHandler,
-)
+from doxa_competition.event_handlers import AgentEventHandler, EvaluationEventHandler
 from doxa_competition.event_router import EventRouter
 
 
@@ -38,15 +34,12 @@ class Competition:
 
     def __init__(
         self,
-        evaluation_driver: Type[EvaluationDriver],
         agent_event_handler: AgentEventHandler,
         evaluation_event_handler: EvaluationEventHandler,
         extensions: List[Extension] = None,
     ) -> None:
-        self.driver = evaluation_driver
         self.extensions = extensions if extensions else []
         self.event_handlers = [
-            EvaluationRequestOutcomeHandler(self.get_tag(), self.driver),
             agent_event_handler,
             evaluation_event_handler,
         ] + self.extensions

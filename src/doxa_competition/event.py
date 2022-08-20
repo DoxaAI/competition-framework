@@ -6,16 +6,28 @@ from doxa_competition.context import CompetitionContext
 
 
 class Event:
-    """A DOXA event representing a received Pulsar message.
+    """A DOXA event.
 
     Many event handlers may wish to wrap these event objects internally
     so as to be more useful to competition implementers.
     """
 
-    message_id: bytes
     body: dict
     properties: dict
     timestamp: int
+
+    def __init__(
+        self, body: dict, properties: dict = None, timestamp: int = None
+    ) -> None:
+        self.body = body
+        self.properties = properties if properties is not None else {}
+        self.timestamp = timestamp
+
+
+class PulsarEvent(Event):
+    """A DOXA event generated via a Pulsar topic."""
+
+    message_id: bytes
 
     def __init__(
         self, message_id: bytes, body: dict, properties: dict, timestamp: int

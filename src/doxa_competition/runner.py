@@ -1,5 +1,4 @@
 import json
-from multiprocessing import Pool
 from typing import Callable, Dict
 
 import pulsar
@@ -7,9 +6,8 @@ from _pulsar import ConsumerType
 
 from doxa_competition.competition import Competition
 from doxa_competition.context import CompetitionContext
-from doxa_competition.event import Event
+from doxa_competition.event import Event, PulsarEvent
 from doxa_competition.event_router import EventRouter
-from doxa_competition.pool import EvaluationPool
 from doxa_competition.utils import make_pulsar_client as make_default_pulsar_client
 
 
@@ -22,7 +20,6 @@ class CompetitionRunner:
 
     def __init__(self, make_pulsar_client: Callable[[], pulsar.Client] = None) -> None:
         self._router = EventRouter()
-        self._pool = EvaluationPool(pool=Pool(processes=4))
         self._pulsar_client = (
             make_pulsar_client()
             if make_pulsar_client is not None
@@ -43,7 +40,7 @@ class CompetitionRunner:
             raise RuntimeError(f"The competition {tag} has already been registered.")
 
         # construct competition context
-        context = CompetitionContext(tag, self._pulsar_client, self._pool)
+        context = CompetitionContext(tag, self._pulsar_client)
 
         # register competition event handlers, e.g. the agent event handler,
         # the evaluation event handler or handlers related to extensions
@@ -72,7 +69,7 @@ class CompetitionRunner:
         Returns:
             Event: An event to be handled.
         """
-        return Event(
+        return PulsarEvent(
             message_id=message.message_id().serialize(),
             body=json.loads(message.value()),
             properties=message.properties(),
@@ -111,5 +108,4 @@ class CompetitionRunner:
 
                 break
 
-        self._pool.close()
         self._pulsar_client.close()
