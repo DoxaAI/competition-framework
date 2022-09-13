@@ -76,7 +76,7 @@ class EvaluationDriver:
         raise NotImplementedError()
 
     def _make_context(self, event) -> EvaluationContext:
-        context = EvaluationContext(
+        return EvaluationContext(
             id=event.body["evaluation"]["id"],
             batch_id=event.body["evaluation"]["batch_id"],
             queued_at=datetime.fromisoformat(event.body["evaluation"]["queued_at"]),
@@ -87,8 +87,6 @@ class EvaluationDriver:
             },
             extra=event.body["evaluation"].get("extra", {}),
         )
-
-        return context
 
     def _handle(self, event: EvaluationEvent) -> None:
         """The internal handler for evaluation requests, running in a separate process.
@@ -101,18 +99,20 @@ class EvaluationDriver:
         """
 
         # create the evaluation context
-        context = self._make_context(event)
+        self._context = self._make_context(event)
 
         # connect to the Hearth nodes
-        context.connect_to_nodes()
+        self._context.connect_to_nodes()
 
         # call userland code to handle the evaluation
-        self.handle(context)
+        self.handle(self._context)
 
         # clean up Hearth node instances
-        context.release_nodes()
+        self._context.release_nodes()
 
-    def emit_evaluation_event(self, body: dict, properties: dict = None) -> None:
+    def emit_evaluation_event(
+        self, event_type: str, body: dict, properties: dict = None
+    ) -> None:
         """Emits an evaluation event specific to the competition using
         the internal evaluation event producer available throughout the
         lifetime of the evaluation driver.
@@ -123,7 +123,13 @@ class EvaluationDriver:
         """
 
         self._event_producer.send(
-            json.dumps(body).encode("utf-8"),
+            json.dumps(
+                {
+                    "evaluation_id": self._context.id,
+                    "event_type": event_type,
+                    body: body,
+                }
+            ).encode("utf-8"),
             properties if properties is not None else {},
         )
 
