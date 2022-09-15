@@ -1,4 +1,6 @@
+from datetime import datetime
 from pydoc import locate
+from uuid import uuid4
 
 import click
 from sanic import Sanic
@@ -63,11 +65,27 @@ def competition_worker(
 ):
     """A CLI tool for spinning up DOXA competition driver worker instances."""
 
+    driver_uuid = uuid4()
+    start_time = datetime.now()
+
     Driver: EvaluationDriver = locate(driver)
 
     app = Sanic("doxa-competition-worker")
 
     app.ctx.pulsar_client = make_pulsar_client()
+
+    # TODO: register with Umpire
+
+    @app.get("/status")
+    async def status_handler(request: Request):
+        return json(
+            {
+                "uuid": str(driver_uuid),
+                "competitions": [competition_tag],
+                "started_at": start_time.isoformat(),
+                "workers": workers,
+            }
+        )
 
     @app.post("/evaluation")
     async def evaluation_handler(request: Request):
