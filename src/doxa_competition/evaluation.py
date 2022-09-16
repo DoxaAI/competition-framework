@@ -104,11 +104,17 @@ class EvaluationDriver:
         # connect to the Hearth nodes
         self._context.connect_to_nodes()
 
+        # emit _START event
+        self.emit_evaluation_event(event_type="_START", body={})
+
         # call userland code to handle the evaluation
         self.handle(self._context)
 
         # clean up Hearth node instances
         self._context.release_nodes()
+
+        # emit _END event
+        self.emit_evaluation_event(event_type="_END", body={})
 
     def emit_evaluation_event(
         self, event_type: str, body: dict, properties: dict = None
