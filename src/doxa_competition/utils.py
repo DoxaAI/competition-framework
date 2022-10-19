@@ -7,7 +7,7 @@ import pulsar
 PULSAR_PATH = "pulsar://pulsar:6650"
 
 
-def make_pulsar_client() -> pulsar.Client:
+def make_pulsar_client(pulsar_path: str = None) -> pulsar.Client:
     """Creates a new Pulsar client instance.
 
     In development, it may be helpful to modify the DOXA_PULSAR_PATH
@@ -23,8 +23,10 @@ def make_pulsar_client() -> pulsar.Client:
     #       keeping them to a minimum.
 
     return pulsar.Client(
-        os.environ.get("DOXA_PULSAR_PATH", PULSAR_PATH),
-        logger=logging.Logger(name="pulsar_client_logger", level=30),
+        pulsar_path
+        if pulsar_path is not None
+        else os.environ.get("DOXA_PULSAR_PATH", PULSAR_PATH),
+        logger=logging.Logger(name="pulsar_client_logger", level=0),
     )
 
 

@@ -1,0 +1,50 @@
+syntax = "proto3";
+package umpire.scheduling;
+
+service UmpireSchedulingService {
+  rpc ScheduleEvaluationBatch(ScheduleEvaluationBatchRequest)
+      returns (ScheduleEvaluationBatchResponse);
+  rpc CompleteEvaluation(CompleteEvaluationRequest)
+      returns (CompleteEvaluationResponse);
+  rpc RegisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
+  rpc DeregisterDriver(DeregisterDriverRequest)
+      returns (DeregisterDriverResponse);
+}
+
+// Schedule batch of evaluations
+
+message EvaluationSubmission {
+  // Agent participants (the same agent may appear multiple times)
+  repeated int32 agent_ids = 1;
+  string metadata = 2;
+}
+
+message ScheduleEvaluationBatchRequest {
+  string competition_tag = 1;
+  repeated EvaluationSubmission evaluations = 2;
+}
+
+message ScheduleEvaluationBatchResponse {
+  int32 batch_id = 1;
+}
+
+// Mark an evaluation as completed (and release the worker)
+
+message CompleteEvaluationRequest { int32 evaluation_id = 1; }
+
+message CompleteEvaluationResponse {}
+
+// Driver registration & deregistration
+
+message RegisterDriverRequest {
+  string runtime_id = 1;
+  string competition_tag = 2;
+  string endpoint = 3;
+  int32 workers = 4;
+}
+
+message RegisterDriverResponse {}
+
+message DeregisterDriverRequest { string runtime_id = 1; }
+
+message DeregisterDriverResponse {}

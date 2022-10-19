@@ -5,15 +5,15 @@ name = "pypi"
 
 [packages]
 pulsar-client = "==2.10.1"
-grpcio = "*"
 sanic = "*"
+betterproto = {extras = ["compiler"], version = "*"}
+grpcio-tools = "*"
 
 [dev-packages]
-grpcio-tools = "*"
 black = "*"
 
 [requires]
 python_version = "3.9"
 
 [pipenv]
-allow_prereleases = true
+allow_prereleases = false

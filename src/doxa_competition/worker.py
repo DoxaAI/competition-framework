@@ -1,14 +1,18 @@
+import asyncio
 from datetime import datetime
+from functools import wraps
 from pydoc import locate
 from uuid import uuid4
 
 import click
 from sanic import Sanic
+from sanic.log import logger
 from sanic.request import Request
 from sanic.response import json
 
 from doxa_competition.evaluation import EvaluationDriver
 from doxa_competition.events import EvaluationEvent
+from doxa_competition.umpire import make_umpire_scheduling_service
 from doxa_competition.utils import make_pulsar_client
 
 
@@ -70,23 +74,71 @@ async def process_evaluation(driver: EvaluationDriver, event: EvaluationEvent):
 @click.option("--host", "-h", type=str, default="0.0.0.0", help="The host to bind to.")
 @click.option("--port", "-p", type=int, default=8000, help="The port to run on.")
 @click.option(
+    "--endpoint",
+    "-e",
+    type=str,
+    default=None,
+    help="The endpoint with which to register with Umpire if it cannot be formed from the host and port.",
+)
+@click.option(
     "--workers", "-w", type=int, default=4, help="Number of worker processes."
 )
+@click.option(
+    "--pulsar-path",
+    type=str,
+    default="pulsar://pulsar:6650",
+    help="The path to a running Pulsar instance.",
+)
+@click.option(
+    "--umpire-host",
+    type=str,
+    default="umpire",
+    help="The host on which Umpire is running.",
+)
+@click.option(
+    "--umpire-port", type=int, default=80, help="The port on which Umpire is running."
+)
 def competition_worker(
-    competition_tag: str, driver: str, host: str, port: int, workers: int
+    competition_tag: str,
+    driver: str,
+    host: str,
+    port: int,
+    endpoint: str,
+    workers: int,
+    pulsar_path: str,
+    umpire_host: str,
+    umpire_port: int,
 ):
     """A CLI tool for spinning up DOXA competition driver worker instances."""
 
     driver_uuid = uuid4()
     start_time = datetime.now()
+    driver_endpoint = endpoint if endpoint is not None else f"http://{host}:{port}/"
 
     Driver: EvaluationDriver = locate(driver)
 
     app = Sanic("doxa-competition-worker")
+    app.ctx.pulsar_client = make_pulsar_client(pulsar_path=pulsar_path)
 
-    app.ctx.pulsar_client = make_pulsar_client()
+    @app.main_process_start
+    async def startup_handler(app, loop):
+        app.ctx.umpire_scheduling = await make_umpire_scheduling_service(
+            host=umpire_host, port=umpire_port
+        )
+        await app.ctx.umpire_scheduling.register_driver(
+            runtime_id=str(driver_uuid),
+            competition_tag=competition_tag,
+            endpoint=driver_endpoint,
+            workers=workers,
+        )
+        logger.info("Registered with Umpire.")
 
-    # TODO: register with Umpire
+    @app.main_process_stop
+    async def shutdown_handler(app, loop):
+        await app.ctx.umpire_scheduling.deregister_driver(
+            runtime_id=str(driver_uuid),
+        )
+        logger.info("Successfully deregistered from Umpire.")
 
     @app.get("/status")
     async def status_handler(request: Request):
@@ -101,6 +153,7 @@ def competition_worker(
 
     @app.post("/evaluation")
     async def evaluation_handler(request: Request):
+        print("Handling evaluation:", request.body)
         try:
             event = make_evaluation_event(request)
         except:
