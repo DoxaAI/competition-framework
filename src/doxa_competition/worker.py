@@ -22,19 +22,31 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
         EvaluationEvent: The resulting event.
     """
 
-    assert "evaluation" in request.json
-    assert "id" in request.json["evaluation"]
-    assert "batch_id" in request.json["evaluation"]
-    assert "queued_at" in request.json["evaluation"]
-    assert "agents" in request.json["evaluation"]
-    assert isinstance(request.json["evaluation"]["agents"], list)
-    assert len(request.json["evaluation"]["agents"]) > 0
+    # {
+    #     "id": ...,
+    #     "batch_id": ...,
+    #     "queued_at": ...,
+    #     "participants": [{
+    #         "participant_index": ...,
+    #         "agent_id": ...,
+    #         "endpoint": ...,
+    #         "auth_token": ...,
+    #     }, ...],
+    # }
 
-    assert "nodes" in request.json
-    for agent_tag in request.json["evaluation"]["agents"]:
-        assert agent_tag in request.json["nodes"]
-        assert "endpoint" in request.json["nodes"][agent_tag]
-        assert "auth_token" in request.json["nodes"][agent_tag]
+    assert "id" in request.json
+    assert "batch_id" in request.json
+    assert "queued_at" in request.json
+    assert "participants" in request.json
+    assert isinstance(request.json["participants"], list)
+    assert len(request.json["participants"]) > 0
+
+    for participant in request.json["participants"]:
+        assert isinstance(participant, dict)
+        assert "participant_index" in participant
+        assert "agent_id" in participant
+        assert "endpoint" in participant
+        assert "auth_token" in participant
 
     return EvaluationEvent(body=request.json)
 
