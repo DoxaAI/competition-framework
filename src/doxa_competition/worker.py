@@ -123,6 +123,8 @@ def competition_worker(
     app.ctx.pulsar_client = make_pulsar_client(pulsar_path=pulsar_path)
     app.ctx.umpire_channel_connection = {"host": umpire_host, "port": umpire_port}
 
+    logger.info(f"Driver {str(driver_uuid)} is starting with {workers} workers.")
+
     @app.main_process_start
     async def startup_handler(app, loop):
         app.ctx.umpire_channel = make_umpire_channel(host=umpire_host, port=umpire_port)
