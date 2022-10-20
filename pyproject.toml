@@ -13,6 +13,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+  "pulsar-client == 2.10.1",
+  "sanic >= 22.9.0",
+  "betterproto >= 1.2.5"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/DoxaAI/competition-framework"
