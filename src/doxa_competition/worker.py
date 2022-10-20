@@ -1,6 +1,4 @@
-import asyncio
 from datetime import datetime
-from functools import wraps
 from pydoc import locate
 from uuid import uuid4
 
@@ -12,7 +10,8 @@ from sanic.response import json
 
 from doxa_competition.evaluation import EvaluationDriver
 from doxa_competition.events import EvaluationEvent
-from doxa_competition.umpire import make_umpire_scheduling_service
+from doxa_competition.proto.umpire.scheduling import UmpireSchedulingServiceStub
+from doxa_competition.umpire import make_umpire_channel
 from doxa_competition.utils import make_pulsar_client
 
 
@@ -55,9 +54,12 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
     return EvaluationEvent(body=request.json)
 
 
-async def process_evaluation(driver: EvaluationDriver, event: EvaluationEvent):
-    driver._handle(event)
-    driver.teardown()
+async def process_evaluation(
+    driver: EvaluationDriver, event: EvaluationEvent, umpire_channel_connection: dict
+):
+    await driver.startup(make_umpire_channel(**umpire_channel_connection))
+    await driver._handle(event)
+    await driver.teardown()
 
 
 @click.command()
@@ -119,12 +121,12 @@ def competition_worker(
 
     app = Sanic("doxa-competition-worker")
     app.ctx.pulsar_client = make_pulsar_client(pulsar_path=pulsar_path)
+    app.ctx.umpire_channel_connection = {"host": umpire_host, "port": umpire_port}
 
     @app.main_process_start
     async def startup_handler(app, loop):
-        app.ctx.umpire_scheduling = await make_umpire_scheduling_service(
-            host=umpire_host, port=umpire_port
-        )
+        app.ctx.umpire_channel = make_umpire_channel(host=umpire_host, port=umpire_port)
+        app.ctx.umpire_scheduling = UmpireSchedulingServiceStub(app.ctx.umpire_channel)
         await app.ctx.umpire_scheduling.register_driver(
             runtime_id=str(driver_uuid),
             competition_tag=competition_tag,
@@ -135,10 +137,15 @@ def competition_worker(
 
     @app.main_process_stop
     async def shutdown_handler(app, loop):
-        await app.ctx.umpire_scheduling.deregister_driver(
-            runtime_id=str(driver_uuid),
-        )
-        logger.info("Successfully deregistered from Umpire.")
+        try:
+            await app.ctx.umpire_scheduling.deregister_driver(
+                runtime_id=str(driver_uuid),
+            )
+            logger.info("Successfully deregistered from Umpire.")
+        except:
+            logger.error("Failed to deregister from Umpire.")
+
+        app.ctx.umpire_channel.close()
 
     @app.get("/status")
     async def status_handler(request: Request):
@@ -153,16 +160,20 @@ def competition_worker(
 
     @app.post("/evaluation")
     async def evaluation_handler(request: Request):
-        print("Handling evaluation:", request.body)
         try:
             event = make_evaluation_event(request)
         except:
             return json({"success": False})
 
+        logger.info(f"Handling evaluation {event.evaluation_id}")
         request.app.add_task(
             process_evaluation(
-                driver=Driver(competition_tag, request.app.ctx.pulsar_client),
+                driver=Driver(
+                    competition_tag,
+                    request.app.ctx.pulsar_client,
+                ),
                 event=event,
+                umpire_channel_connection=app.ctx.umpire_channel_connection,
             )
         )
 

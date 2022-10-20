@@ -1,4 +1,4 @@
-from typing import List, Type
+from typing import List
 
 from doxa_competition.context import CompetitionContext
 from doxa_competition.evaluation import EvaluationDriver

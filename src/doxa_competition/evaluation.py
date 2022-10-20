@@ -1,12 +1,14 @@
 import json
-import queue
+import traceback
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 
 import pulsar
+from grpclib.client import Channel
 
 from doxa_competition.events import EvaluationEvent
 from doxa_competition.execution import Node
+from doxa_competition.proto.umpire.scheduling import UmpireSchedulingServiceStub
 from doxa_competition.utils import send_pulsar_message
 
 
@@ -16,8 +18,7 @@ class EvaluationContext:
     id: int
     batch_id: int
     queued_at: datetime
-    agents: List[str]
-    nodes: Dict[str, Node]
+    participants: List[dict]
     extra: dict
 
     def __init__(
@@ -25,27 +26,33 @@ class EvaluationContext:
         id: int,
         batch_id: int,
         queued_at: datetime,
-        agents: List[str],
-        nodes: Dict[str, Node],
+        participants: List[dict],
         extra: dict = None,
     ) -> None:
         self.id = id
         self.batch_id = batch_id
         self.queued_at = queued_at
-        self.agents = agents
-        self.nodes = nodes
+        self.nodes = [
+            Node(
+                participant_index=participant["participant_index"],
+                agent_id=participant["agent_id"],
+                endpoint=participant["endpoint"],
+                auth_token=participant["auth_token"],
+            )
+            for participant in participants
+        ]
         self.extra = extra if extra is not None else {}
 
     def connect_to_nodes(self) -> None:
         """Connects to Hearth nodes required for the evaluation as set up by Umpire."""
 
-        for node in self.nodes.values():
+        for node in self.nodes:
             node.connect()
 
     def release_nodes(self) -> None:
         """Releases Hearth nodes once evaluation terminates."""
 
-        for node in self.nodes.values():
+        for node in self.nodes:
             node.release()
 
 
@@ -55,8 +62,13 @@ class EvaluationDriver:
     competition_tag: str
     _pulsar_client: pulsar.Client
     _event_producer: pulsar.Producer
+    _umpire_channel: Channel
 
-    def __init__(self, competition_tag: str, pulsar_client: pulsar.Client) -> None:
+    def __init__(
+        self,
+        competition_tag: str,
+        pulsar_client: pulsar.Client,
+    ) -> None:
         self.competition_tag = competition_tag
         self._pulsar_client = pulsar_client
 
@@ -64,7 +76,10 @@ class EvaluationDriver:
             f"persistent://public/default/competition-{self.competition_tag}-evaluation-events"
         )
 
-    def handle(self, context: EvaluationContext) -> None:
+    async def startup(self, umpire_channel: Channel):
+        self._umpire_channel = umpire_channel
+
+    async def handle(self, context: EvaluationContext) -> None:
         """Handles the evaluation process according to the specific competition
         once Hearth nodes are properly set up.
 
@@ -75,20 +90,16 @@ class EvaluationDriver:
 
         raise NotImplementedError()
 
-    def _make_context(self, event) -> EvaluationContext:
+    def _make_context(self, event: EvaluationEvent) -> EvaluationContext:
         return EvaluationContext(
-            id=event.body["evaluation"]["id"],
-            batch_id=event.body["evaluation"]["batch_id"],
-            queued_at=datetime.fromisoformat(event.body["evaluation"]["queued_at"]),
-            agents=event.body["evaluation"]["agents"],
-            nodes={
-                agent: Node(endpoint=node["endpoint"], auth_token=node["auth_token"])
-                for agent, node in event.body["nodes"].items()
-            },
-            extra=event.body["evaluation"].get("extra", {}),
+            id=event.evaluation_id,
+            batch_id=event.batch_id,
+            queued_at=datetime.fromisoformat(event.queued_at),
+            participants=event.participants,
+            extra=event.extra,
         )
 
-    def _handle(self, event: EvaluationEvent) -> None:
+    async def _handle(self, event: EvaluationEvent) -> None:
         """The internal handler for evaluation requests, running in a separate process.
 
         This wraps the handle() method to be provided by the competition implementer,
@@ -108,7 +119,20 @@ class EvaluationDriver:
         self.emit_evaluation_event(event_type="_START", body={})
 
         # call userland code to handle the evaluation
-        self.handle(self._context)
+        try:
+            await self.handle(self._context)
+        except Exception as e:
+            self.emit_evaluation_event(
+                event_type="_ERROR",
+                body={
+                    "exception": {
+                        "type": e.__class__.__name__,
+                        "traceback": "".join(
+                            traceback.format_exception(None, e, e.__traceback__)
+                        ),
+                    }
+                },
+            )
 
         # clean up Hearth node instances
         self._context.release_nodes()
@@ -133,7 +157,7 @@ class EvaluationDriver:
                 {
                     "evaluation_id": self._context.id,
                     "event_type": event_type,
-                    body: body,
+                    "body": body,
                 }
             ).encode("utf-8"),
             properties if properties is not None else {},
@@ -156,7 +180,14 @@ class EvaluationDriver:
             properties=properties if properties is not None else {},
         )
 
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         """Tears down the evaluation driver."""
 
         self._event_producer.close()
+
+        try:
+            await UmpireSchedulingServiceStub(self._umpire_channel).complete_evaluation(
+                evaluation_id=self._context.id
+            )
+        finally:
+            self._umpire_channel.close()

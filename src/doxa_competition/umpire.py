@@ -1,9 +1,5 @@
 from grpclib.client import Channel
 
-from doxa_competition.proto.umpire.scheduling import UmpireSchedulingServiceStub
 
-
-async def make_umpire_scheduling_service(
-    host: str = "umpire", port: int = 80
-) -> UmpireSchedulingServiceStub:
-    return UmpireSchedulingServiceStub(Channel(host=host, port=port))
+def make_umpire_channel(host: str = "umpire", port: int = 80) -> Channel:
+    return Channel(host=host, port=port)
