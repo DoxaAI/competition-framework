@@ -1,28 +1,9 @@
 from typing import List
 
 from doxa_competition.context import CompetitionContext
-from doxa_competition.evaluation import EvaluationDriver
-from doxa_competition.event import EventHandler
+from doxa_competition.event import EventHandler, Extension
 from doxa_competition.event_handlers import AgentEventHandler, EvaluationEventHandler
 from doxa_competition.event_router import EventRouter
-
-
-class Extension(EventHandler):
-    """Competitions may implement "extensions" that allow competition services
-    to handle additional events (either those emitted by the competition service
-    itself or by other services in the DOXA ecosystem).
-
-    Extensions must provide an identifying tag so that Umpire can track what
-    extensions are currently supported.
-    """
-
-    def get_extension_name() -> str:
-        """Returns the extension tag for identification with Umpire.
-
-        Returns:
-            str: The extension tag.
-        """
-        raise NotImplementedError()
 
 
 class Competition:
@@ -30,7 +11,6 @@ class Competition:
 
     event_handlers: List[EventHandler]
     extensions: List[Extension]
-    driver: EvaluationDriver
 
     def __init__(
         self,

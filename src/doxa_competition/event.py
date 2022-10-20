@@ -46,6 +46,31 @@ class PulsarEvent(Event):
         return MessageId.deserialize(self.message_id)
 
 
+class AgentEvent(PulsarEvent):
+    id: int
+    tag: str
+    enrolment_id: int
+    upload_id: int
+    created_at: str
+    activated_at: str
+
+    def __init__(
+        self,
+        message_id: bytes,
+        body: dict,
+        properties: dict = None,
+        timestamp: int = None,
+    ) -> None:
+        super().__init__(message_id, body, properties, timestamp)
+
+        self.agent_id = body["id"]
+        self.agent_tag = body["tag"]
+        self.enrolment_id = body["enrolment_id"]
+        self.upload_id = body["upload_id"]
+        self.created_at = body["created_at"]
+        self.activated_at = body["activated_at"]
+
+
 TopicHandler = Callable[[Event], None]
 
 
@@ -82,4 +107,22 @@ class EventHandler:
             Dict[str, TopicHandler]: The route mappings.
         """
 
+        raise NotImplementedError()
+
+
+class Extension(EventHandler):
+    """Competitions may implement "extensions" that allow competition services
+    to handle additional events (either those emitted by the competition service
+    itself or by other services in the DOXA ecosystem).
+
+    Extensions must provide an identifying tag so that Umpire can track what
+    extensions are currently supported.
+    """
+
+    def get_extension_name() -> str:
+        """Returns the extension tag for identification with Umpire.
+
+        Returns:
+            str: The extension tag.
+        """
         raise NotImplementedError()

@@ -1,14 +1,18 @@
 import json
+import logging
+import traceback
 from typing import Callable, Dict
 
 import pulsar
 from _pulsar import ConsumerType
+from grpclib.client import Channel
 
 from doxa_competition.competition import Competition
 from doxa_competition.context import CompetitionContext
 from doxa_competition.event import Event, PulsarEvent
 from doxa_competition.event_router import EventRouter
-from doxa_competition.utils import make_pulsar_client as make_default_pulsar_client
+from doxa_competition.umpire import make_umpire_channel
+from doxa_competition.utils import make_pulsar_client
 
 
 class CompetitionRunner:
@@ -17,14 +21,17 @@ class CompetitionRunner:
     _competitions: Dict[str, Competition]
     _router: EventRouter
     _pulsar_client: pulsar.Client
+    _umpire_channel: Channel
 
-    def __init__(self, make_pulsar_client: Callable[[], pulsar.Client] = None) -> None:
+    def __init__(
+        self,
+        pulsar_path: str = None,
+        umpire_host: str = "umpire",
+        umpire_port: int = 80,
+    ) -> None:
         self._router = EventRouter()
-        self._pulsar_client = (
-            make_pulsar_client()
-            if make_pulsar_client is not None
-            else make_default_pulsar_client()
-        )
+        self._pulsar_client = make_pulsar_client(pulsar_path=pulsar_path)
+        self._umpire_channel = make_umpire_channel(host=umpire_host, port=umpire_port)
         self._competitions = {}
 
     def register(self, competition: Competition) -> None:
@@ -40,7 +47,7 @@ class CompetitionRunner:
             raise RuntimeError(f"The competition {tag} has already been registered.")
 
         # construct competition context
-        context = CompetitionContext(tag, self._pulsar_client)
+        context = CompetitionContext(tag, self._pulsar_client, self._umpire_channel)
 
         # register competition event handlers, e.g. the agent event handler,
         # the evaluation event handler or handlers related to extensions
@@ -48,10 +55,10 @@ class CompetitionRunner:
 
         self._competitions[tag] = competition
 
-    def setup(self) -> None:
-        """Sets up the competition."""
+    def _setup(self) -> None:
+        """Sets up the competition runner."""
 
-        # TODO: registration with Umpire, delcaring competitions
+        # TODO: registration with Umpire, declaring competitions
         # and their supported extensions
 
         pass
@@ -76,9 +83,11 @@ class CompetitionRunner:
             timestamp=message.publish_timestamp(),
         )
 
-    def run(self):
+    async def run(self):
         """Subscribes to Pulsar topics corresponding to the registered event
         handlers and routes events accordingly."""
+
+        self._setup()
 
         # start listening to the various Pulsar sources
         consumer = self._pulsar_client.subscribe(
@@ -88,24 +97,26 @@ class CompetitionRunner:
             schema=pulsar.schema.BytesSchema(),
         )
 
-        while True:
-            message = consumer.receive()
-            try:
-                # remove the "persistent://public/default/" prefix
-                _, topic_name = message.topic_name().rsplit("/", 1)
-
-                # resolve the topic handler
-                topic_handler = self._router.resolve(topic_name)
-
-                # call the topic handler
-                topic_handler(self._get_event(message))
-
-                # acknowledge the message after successful processing
+        try:
+            while True:
+                message = consumer.receive()
                 consumer.acknowledge(message)
-            except:
-                # nack messages that failed to be processed
-                consumer.negative_acknowledge(message)
 
-                break
+                try:
+                    # remove the "persistent://public/default/" prefix
+                    _, topic_name = message.topic_name().rsplit("/", 1)
 
-        self._pulsar_client.close()
+                    # resolve the topic handler
+                    topic_handler = self._router.resolve(topic_name)
+
+                    # call the topic handler
+                    await topic_handler(self._get_event(message))
+                except KeyboardInterrupt:
+                    break
+
+                    # TODO: determine whether we should break or
+                    # attempt to keep processing other events
+                    # for other exceptions
+        finally:
+            self._pulsar_client.close()
+            self._umpire_channel.close()
