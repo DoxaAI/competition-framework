@@ -1,6 +1,6 @@
 import os
-from typing import List
-from urllib.parse import urlparse
+from typing import List, Tuple
+from urllib.parse import urlsplit
 
 from grpclib.client import Channel
 
@@ -37,13 +37,17 @@ class Node:
         self.agent_id = agent_id
         self.agent_metadata = agent_metadata
         self.enrolment_id = enrolment_id
-        self.endpoint = endpoint
+        self.endpoint = os.environ.get("HEARTH_ENDPOINT_OVERRIDE", endpoint)
         self.auth_token = auth_token
 
-        endpoint = urlparse(os.environ.get("HEARTH_ENDPOINT_OVERRIDE", self.endpoint))
+        hostname, port = self.parse_endpoint(self.endpoint)
 
-        self.node_channel = Channel(host=endpoint.hostname, port=endpoint.port)
+        self.node_channel = Channel(host=hostname, port=port)
         self.node_api = NodeApiStub(self.node_channel)
+
+    def parse_endpoint(self, endpoint) -> Tuple[str, int]:
+        components = urlsplit(endpoint if "//" in endpoint else "//" + endpoint)
+        return components.hostname, components.port if components.port else 5050
 
     def is_gzip(self) -> bool:
         try:
@@ -55,7 +59,7 @@ class Node:
         return await self.node_api.download_application(
             DownloadApplicationRequest(
                 endpoint=self.endpoint,
-                endpoint_bearer=self.auth_token,
+                endpoint_bearer="",
                 gzip=self.is_gzip(),
             ),
             metadata={"x-hearth-auth": self.auth_token},
@@ -91,6 +95,7 @@ class Node:
             yield response.data
 
     async def release(self):
-        return await self.node_api.shutdown_node(
+        await self.node_api.shutdown_node(
             ShutdownNodeRequest(), metadata={"x-hearth-auth": self.auth_token}
         )
+        self.node_channel.close()
