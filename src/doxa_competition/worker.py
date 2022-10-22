@@ -58,6 +58,8 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
         assert isinstance(participant["agent_metadata"], dict)
         assert "enrolment_id" in participant
         assert "endpoint" in participant
+        assert "storage_endpoint" in participant
+        assert "upload_id" in participant
         assert "auth_token" in participant
 
     return EvaluationEvent(body=request.json)

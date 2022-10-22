@@ -22,6 +22,8 @@ class Node:
     agent_metadata: dict
     enrolment_id: int
     endpoint: str
+    storage_endpoint: str
+    upload_id: int
     auth_token: str
 
     def __init__(
@@ -31,6 +33,8 @@ class Node:
         agent_metadata: dict,
         enrolment_id: int,
         endpoint: str,
+        storage_endpoint: str,
+        upload_id: int,
         auth_token: str,
     ) -> None:
         self.participant_index = participant_index
@@ -38,6 +42,8 @@ class Node:
         self.agent_metadata = agent_metadata
         self.enrolment_id = enrolment_id
         self.endpoint = os.environ.get("HEARTH_ENDPOINT_OVERRIDE", endpoint)
+        self.storage_endpoint = storage_endpoint
+        self.upload_id = upload_id
         self.auth_token = auth_token
 
         hostname, port = self.parse_endpoint(self.endpoint)
@@ -58,7 +64,7 @@ class Node:
     async def fetch_agent(self):
         return await self.node_api.download_application(
             DownloadApplicationRequest(
-                endpoint=self.endpoint,
+                endpoint=f"{self.storage_endpoint}download/{self.upload_id}",
                 endpoint_bearer="",
                 gzip=self.is_gzip(),
             ),

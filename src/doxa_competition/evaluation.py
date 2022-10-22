@@ -51,6 +51,8 @@ class EvaluationContext:
                 agent_metadata=participant["agent_metadata"],
                 enrolment_id=participant["enrolment_id"],
                 endpoint=participant["endpoint"],
+                storage_endpoint=participant["storage_endpoint"],
+                upload_id=participant["upload_id"],
                 auth_token=participant["auth_token"],
             )
             for participant in participants
