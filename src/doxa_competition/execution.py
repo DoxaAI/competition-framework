@@ -58,13 +58,13 @@ class Node:
                 gid=1000,
                 env_vars=environment if environment is not None else [],
             ),
-            metadata={"X-hearth-auth": self.auth_token},
+            metadata={"x-hearth-auth": self.auth_token},
         )
 
     async def read_stdout(self):
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=True, stderr=False),
-            metadata={"X-hearth-auth": self.auth_token},
+            metadata={"x-hearth-auth": self.auth_token},
         ):
             yield response.line
 
