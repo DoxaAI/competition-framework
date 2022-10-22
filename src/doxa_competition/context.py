@@ -7,6 +7,7 @@ from grpclib.client import Channel
 
 from doxa_competition.proto.umpire.scheduling import (
     EvaluationSubmission,
+    ScheduleEvaluationBatchRequest,
     UmpireSchedulingServiceStub,
 )
 from doxa_competition.utils import send_pulsar_message
@@ -69,22 +70,20 @@ class CompetitionContext:
 
     async def schedule_evaluation(self, agent_ids: List[int], metadata: dict = None):
         return await self.schedule_evaluation_batch(
-            [
-                EvaluationSubmission(
-                    agent_ids, json.dumps(metadata if metadata is not None else {})
-                )
-            ]
+            [Evaluation(agent_ids, metadata if metadata is not None else {})]
         )
 
     async def schedule_evaluation_batch(self, evaluations: List[Evaluation]):
         return await UmpireSchedulingServiceStub(
             self._umpire_channel
         ).schedule_evaluation_batch(
-            competition_tag=self.competition_tag,
-            evaluations=[
-                EvaluationSubmission(
-                    evaluation.agent_ids, json.dumps(evaluation.metadata)
-                )
-                for evaluation in evaluations
-            ],
+            ScheduleEvaluationBatchRequest(
+                competition_tag=self.competition_tag,
+                evaluations=[
+                    EvaluationSubmission(
+                        evaluation.agent_ids, json.dumps(evaluation.metadata)
+                    )
+                    for evaluation in evaluations
+                ],
+            )
         )
