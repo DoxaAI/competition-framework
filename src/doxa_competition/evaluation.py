@@ -48,17 +48,17 @@ class EvaluationContext:
         ]
         self.extra = extra if extra is not None else {}
 
-    def fetch_agents(self) -> None:
+    async def fetch_agents(self) -> None:
         """Makes each node download its associated agent from the relevant storage node."""
 
         for node in self.nodes:
-            node.fetch_agent()
+            await node.fetch_agent()
 
-    def release_nodes(self) -> None:
+    async def release_nodes(self) -> None:
         """Releases Hearth nodes once evaluation terminates."""
 
         for node in self.nodes:
-            node.release()
+            await node.release()
 
 
 class EvaluationDriver:
@@ -125,7 +125,7 @@ class EvaluationDriver:
 
         if self.autofetch:
             # fetch agents from their respective storage nodes
-            self._context.fetch_agents()
+            await self._context.fetch_agents()
 
         # call userland code to handle the evaluation
         try:
@@ -145,7 +145,7 @@ class EvaluationDriver:
 
         if self.autoshutdown:
             # clean up Hearth node instances
-            self._context.release_nodes()
+            await self._context.release_nodes()
 
         # emit _END event
         self.emit_evaluation_event(event_type="_END", body={})

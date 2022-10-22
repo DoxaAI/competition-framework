@@ -6,7 +6,10 @@ from grpclib.client import Channel
 
 from doxa_competition.proto.nodeapi import (
     CaptureOutputRequest,
+    DownloadApplicationRequest,
+    FileRequest,
     NodeApiStub,
+    ShutdownNodeRequest,
     SpawnApplicationRequest,
 )
 
@@ -42,9 +45,21 @@ class Node:
         self.node_channel = Channel(host=endpoint.hostname, port=endpoint.port)
         self.node_api = NodeApiStub(self.node_channel)
 
-    def fetch_agent(self):
-        # TODO: gRPC call to get the agent to fetch the node
-        pass
+    def is_gzip(self) -> bool:
+        try:
+            return bool(self.agent_metadata.get("gzip", True))
+        except:
+            return True
+
+    async def fetch_agent(self):
+        return await self.node_api.download_application(
+            DownloadApplicationRequest(
+                endpoint=self.endpoint,
+                endpoint_bearer=self.auth_token,
+                gzip=self.is_gzip(),
+            ),
+            metadata={"x-hearth-auth": self.auth_token},
+        )
 
     async def run_command(self, args: List[str], environment: List[str] = None):
         return await self.node_api.spawn_application(
@@ -68,9 +83,14 @@ class Node:
         ):
             yield response.line
 
-    def release(self):
-        # TODO: gRPC call to release the node
-        pass
+    async def get_file(self, path: str):
+        async for response in self.node_api.get_file(
+            FileRequest(path=path),
+            metadata={"x-hearth-auth": self.auth_token},
+        ):
+            yield response.data
 
-    # TODO: implement getting files
-    # TODO: handle reading from and writing to stdio (possibly implemented as a generator!)
+    async def release(self):
+        return await self.node_api.shutdown_node(
+            ShutdownNodeRequest(), metadata={"x-hearth-auth": self.auth_token}
+        )

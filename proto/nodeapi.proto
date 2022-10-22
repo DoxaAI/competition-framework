@@ -25,13 +25,13 @@ message ShutdownNodeResponse { }
  * optionally providing a bearer auth token to authorize the node.
  */
 message DownloadApplicationRequest {
-  string endpoint = 2;
+  string endpoint = 1;
+  bool gzip = 2;
   // optional
   string endpoint_bearer = 3;
 }
 
 message DownloadApplicationResponse {
-  int64 size = 1;
 }
 
 // TODO: This currently is copy-pasted from the controller API, in future it would be nice to "import" it somehow

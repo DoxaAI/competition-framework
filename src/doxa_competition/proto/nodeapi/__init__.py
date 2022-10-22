@@ -46,14 +46,15 @@ class DownloadApplicationRequest(betterproto.Message):
     (endpoint) optionally providing a bearer auth token to authorize the node.
     """
 
-    endpoint: str = betterproto.string_field(2)
+    endpoint: str = betterproto.string_field(1)
+    gzip: bool = betterproto.bool_field(2)
     endpoint_bearer: str = betterproto.string_field(3)
     """optional"""
 
 
 @dataclass(eq=False, repr=False)
 class DownloadApplicationResponse(betterproto.Message):
-    size: int = betterproto.int64_field(1)
+    pass
 
 
 @dataclass(eq=False, repr=False)
