@@ -1,0 +1,18 @@
+syntax = "proto3";
+package umpire.scoreboard;
+
+service UmpireScoreboardService {
+  rpc GetCompetitionResults(GetCompetitionResultsRequest) returns (GetCompetitionResultsResponse);
+}
+
+message AgentResults {
+  int32 agent_id = 1;
+  map<string, int64> results = 2;
+  string activated_at = 3;
+}
+
+message GetCompetitionResultsRequest { string competition_tag = 1; }
+
+message GetCompetitionResultsResponse {
+  repeated AgentResults scoreboard = 1;
+}

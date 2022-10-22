@@ -28,7 +28,10 @@ class AgentEventHandler(EventHandler):
 
         assert "activating_agent" in event.body
 
-        if "deactivating_agent" in event.body:
+        if (
+            "deactivating_agent" in event.body
+            and event.body["deactivating_agent"] is not None
+        ):
             await self.on_deactivation(
                 AgentEvent(
                     event.message_id,

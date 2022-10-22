@@ -8,9 +8,18 @@ from grpclib.client import Channel
 
 from doxa_competition.events import EvaluationEvent
 from doxa_competition.execution import Node
+from doxa_competition.proto.umpire.agent import (
+    GetAgentResultsRequest,
+    SetAgentResultRequest,
+    UmpireAgentServiceStub,
+)
 from doxa_competition.proto.umpire.scheduling import (
     CompleteEvaluationRequest,
     UmpireSchedulingServiceStub,
+)
+from doxa_competition.proto.umpire.scoreboard import (
+    GetCompetitionResultsRequest,
+    UmpireScoreboardServiceStub,
 )
 from doxa_competition.utils import send_pulsar_message
 
@@ -188,6 +197,21 @@ class EvaluationDriver:
             topic=f"persistent://public/default/competition-{self.competition_tag}-{topic_name}",
             body=body,
             properties=properties if properties is not None else {},
+        )
+
+    async def get_competition_results(self):
+        return await UmpireScoreboardServiceStub(
+            self._umpire_channel
+        ).get_competition_results(GetCompetitionResultsRequest(self.competition_tag))
+
+    async def get_agent_results(self, agent_id: int):
+        return await UmpireAgentServiceStub(self._umpire_channel).get_agent_results(
+            GetAgentResultsRequest(agent_id)
+        )
+
+    async def set_agent_result(self, agent_id: int, metric: str, result: int):
+        return await UmpireAgentServiceStub(self._umpire_channel).set_agent_result(
+            SetAgentResultRequest(agent_id, metric, result)
         )
 
     async def teardown(self) -> None:

@@ -1,0 +1,49 @@
+syntax = "proto3";
+package umpire.agent;
+
+service UmpireAgentService {
+  rpc GetAgentResults(GetAgentResultsRequest) returns (GetAgentResultsResponse);
+  rpc SetAgentResult(SetAgentResultRequest) returns (SetAgentResultResponse);
+  rpc SetAgentResults(SetAgentResultsRequest) returns (SetAgentResultsResponse);
+  rpc AddToAgentResult(AddToAgentResultRequest) returns (AddToAgentResultResponse);
+  rpc AddToAgentResults(AddToAgentResultsRequest) returns (AddToAgentResultsResponse);
+}
+
+message AgentResult {
+  int32 id = 1;
+  int32 agent_id = 2;
+  string metric = 3;
+  int64 result = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message GetAgentResultsRequest { int32 agent_id = 1; }
+
+message GetAgentResultsResponse { repeated AgentResult results = 1; }
+
+message SetAgentResultRequest {
+  int32 agent_id = 1;
+  string metric = 2;
+  int64 result = 3;
+}
+
+message SetAgentResultResponse {}
+
+message SetAgentResultsRequest { repeated SetAgentResultRequest results = 1; }
+
+message SetAgentResultsResponse {}
+
+message AddToAgentResultRequest {
+  int32 agent_id = 1;
+  string metric = 2;
+  int64 result = 3;
+}
+
+message AddToAgentResultResponse {}
+
+message AddToAgentResultsRequest {
+  repeated AddToAgentResultRequest results = 1;
+}
+
+message AddToAgentResultsResponse {}
