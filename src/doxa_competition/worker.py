@@ -10,7 +10,11 @@ from sanic.response import json
 
 from doxa_competition.evaluation import EvaluationDriver
 from doxa_competition.events import EvaluationEvent
-from doxa_competition.proto.umpire.scheduling import UmpireSchedulingServiceStub
+from doxa_competition.proto.umpire.scheduling import (
+    DeregisterDriverRequest,
+    RegisterDriverRequest,
+    UmpireSchedulingServiceStub,
+)
 from doxa_competition.umpire import make_umpire_channel
 from doxa_competition.utils import make_pulsar_client
 
@@ -32,6 +36,8 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
     #     "participants": [{
     #         "participant_index": ...,
     #         "agent_id": ...,
+    #         "agent_metadata": {...},
+    #         "enrolment_id": ...,
     #         "endpoint": ...,
     #         "auth_token": ...,
     #     }, ...],
@@ -48,6 +54,9 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
         assert isinstance(participant, dict)
         assert "participant_index" in participant
         assert "agent_id" in participant
+        assert "agent_metadata" in participant
+        assert isinstance(participant["agent_metadata"], dict)
+        assert "enrolment_id" in participant
         assert "endpoint" in participant
         assert "auth_token" in participant
 
@@ -130,10 +139,12 @@ def competition_worker(
         app.ctx.umpire_channel = make_umpire_channel(host=umpire_host, port=umpire_port)
         app.ctx.umpire_scheduling = UmpireSchedulingServiceStub(app.ctx.umpire_channel)
         await app.ctx.umpire_scheduling.register_driver(
-            runtime_id=str(driver_uuid),
-            competition_tag=competition_tag,
-            endpoint=driver_endpoint,
-            workers=workers,
+            RegisterDriverRequest(
+                runtime_id=str(driver_uuid),
+                competition_tag=competition_tag,
+                endpoint=driver_endpoint,
+                workers=workers,
+            )
         )
         logger.info("Registered with Umpire.")
 
@@ -141,7 +152,9 @@ def competition_worker(
     async def shutdown_handler(app, loop):
         try:
             await app.ctx.umpire_scheduling.deregister_driver(
-                runtime_id=str(driver_uuid),
+                DeregisterDriverRequest(
+                    runtime_id=str(driver_uuid),
+                )
             )
             logger.info("Successfully deregistered from Umpire.")
         except:

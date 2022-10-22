@@ -16,7 +16,7 @@ classifiers = [
 dependencies = [
   "pulsar-client == 2.10.1",
   "sanic >= 22.9.0",
-  "betterproto >= 1.2.5",
+  "betterproto >= 2.0.0b5",
   "click >= 8.1.3"
 ]
 

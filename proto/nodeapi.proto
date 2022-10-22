@@ -1,0 +1,117 @@
+syntax = "proto3";
+package nodeapi;
+
+service NodeAPI {
+  // Core functionality (typically maps directly to actions sent to the controller)
+  rpc UploadApplication(stream UploadApplicationRequest) returns (UploadApplicationResponse);
+  rpc SpawnApplication(SpawnApplicationRequest) returns (SpawnApplicationResponse);
+  rpc GetFile(FileRequest) returns (stream FileData);
+  rpc CaptureOutput(CaptureOutputRequest) returns (stream ApplicationOutput);
+
+  rpc ShutdownNode(ShutdownNodeRequest) returns (ShutdownNodeResponse);
+
+  // Utility
+  rpc DownloadApplication(DownloadApplicationRequest) returns (DownloadApplicationResponse);
+}
+
+
+message ShutdownNodeRequest { }
+
+message ShutdownNodeResponse { }
+
+
+/*
+ * Tells the hearth node to download the application from the specified URL (endpoint)
+ * optionally providing a bearer auth token to authorize the node.
+ */
+message DownloadApplicationRequest {
+  string endpoint = 2;
+  // optional
+  string endpoint_bearer = 3;
+}
+
+message DownloadApplicationResponse {
+  int64 size = 1;
+}
+
+// TODO: This currently is copy-pasted from the controller API, in future it would be nice to "import" it somehow
+
+message UploadApplicationRequestMetadata {
+  string path = 1;
+  bool gzip = 2;
+}
+
+/*
+ * Uploads the application to the controller environment.
+ * This must be done once, before the application can be spawned.
+ */
+message UploadApplicationRequest {
+  oneof request {
+    UploadApplicationRequestMetadata metadata = 1;
+    bytes tarfile = 2;
+  }
+}
+
+/*
+* Response from uploading an application.
+*/
+message UploadApplicationResponse { }
+
+enum SpawnMode {
+  START = 0;
+  RESTART = 1;
+}
+
+/*
+ * A request to spawn the application.
+ */
+message SpawnApplicationRequest {
+  repeated string args = 1;
+  SpawnMode mode = 2;
+  bool capture_stdout = 3;
+  bool capture_stderr = 4;
+  string working_dir = 5;
+  int32 uid = 6;
+  int32 gid = 7;
+  repeated string env_vars = 8;
+}
+
+/*
+* Response from spawning an application.
+*/
+message SpawnApplicationResponse {
+  // Whenever an application is spawned it is associated with a unique instanceid which allows futures calls to
+  string instance_id = 1;
+}
+
+/*
+ * A request to capture the stdout/stderr of an application.
+ * An output stream (either stdout or stderr) can only be captured once and only if it was captured when the application was spawned.
+ * The output stream contains all the data from the start of the stream, in part this means that any output stream captured when the application is spawned
+ * should be consumed to avoid wasting RAM.
+ *
+ * If stdout and stderr are both specified then they are interlaced as soon as they become available on a best effort basis.
+ * You should not make any expectations on the order of interlacing particularly any output that is buffered before the capture begins.
+ */
+message CaptureOutputRequest {
+  bool stdout = 1;
+  bool stderr = 2;
+}
+
+/*
+ * The output stream of an application.
+ */
+message ApplicationOutput {
+  string line = 1;
+}
+
+/*
+ * Specifies a single path.
+ */
+message FileRequest {
+  string path = 1;
+}
+
+message FileData {
+  bytes data = 1;
+}

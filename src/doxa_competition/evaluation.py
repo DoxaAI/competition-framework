@@ -8,7 +8,10 @@ from grpclib.client import Channel
 
 from doxa_competition.events import EvaluationEvent
 from doxa_competition.execution import Node
-from doxa_competition.proto.umpire.scheduling import UmpireSchedulingServiceStub
+from doxa_competition.proto.umpire.scheduling import (
+    CompleteEvaluationRequest,
+    UmpireSchedulingServiceStub,
+)
 from doxa_competition.utils import send_pulsar_message
 
 
@@ -18,7 +21,7 @@ class EvaluationContext:
     id: int
     batch_id: int
     queued_at: datetime
-    participants: List[dict]
+    nodes: List[Node]
     extra: dict
 
     def __init__(
@@ -36,6 +39,8 @@ class EvaluationContext:
             Node(
                 participant_index=participant["participant_index"],
                 agent_id=participant["agent_id"],
+                agent_metadata=participant["agent_metadata"],
+                enrolment_id=participant["enrolment_id"],
                 endpoint=participant["endpoint"],
                 auth_token=participant["auth_token"],
             )
@@ -43,11 +48,11 @@ class EvaluationContext:
         ]
         self.extra = extra if extra is not None else {}
 
-    def connect_to_nodes(self) -> None:
-        """Connects to Hearth nodes required for the evaluation as set up by Umpire."""
+    def fetch_agents(self) -> None:
+        """Makes each node download its associated agent from the relevant storage node."""
 
         for node in self.nodes:
-            node.connect()
+            node.fetch_agent()
 
     def release_nodes(self) -> None:
         """Releases Hearth nodes once evaluation terminates."""
@@ -63,6 +68,9 @@ class EvaluationDriver:
     _pulsar_client: pulsar.Client
     _event_producer: pulsar.Producer
     _umpire_channel: Channel
+
+    autofetch: bool = True
+    autoshutdown: bool = True
 
     def __init__(
         self,
@@ -112,11 +120,12 @@ class EvaluationDriver:
         # create the evaluation context
         self._context = self._make_context(event)
 
-        # connect to the Hearth nodes
-        self._context.connect_to_nodes()
-
         # emit _START event
         self.emit_evaluation_event(event_type="_START", body={})
+
+        if self.autofetch:
+            # fetch agents from their respective storage nodes
+            self._context.fetch_agents()
 
         # call userland code to handle the evaluation
         try:
@@ -134,8 +143,9 @@ class EvaluationDriver:
                 },
             )
 
-        # clean up Hearth node instances
-        self._context.release_nodes()
+        if self.autoshutdown:
+            # clean up Hearth node instances
+            self._context.release_nodes()
 
         # emit _END event
         self.emit_evaluation_event(event_type="_END", body={})
@@ -187,7 +197,7 @@ class EvaluationDriver:
 
         try:
             await UmpireSchedulingServiceStub(self._umpire_channel).complete_evaluation(
-                evaluation_id=self._context.id
+                CompleteEvaluationRequest(evaluation_id=self._context.id)
             )
         finally:
             self._umpire_channel.close()
