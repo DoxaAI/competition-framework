@@ -1,7 +1,5 @@
 import json
-import logging
-import traceback
-from typing import Callable, Dict
+from typing import Dict
 
 import pulsar
 from _pulsar import ConsumerType

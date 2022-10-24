@@ -45,3 +45,14 @@ def send_pulsar_message(
     producer = client.create_producer(topic)
     producer.send(json.dumps(body).encode("utf-8"), properties)
     producer.close()
+
+
+def is_valid_filename(filename: str) -> bool:
+    return bool(
+        filename
+        and filename.isprintable()
+        and not any(
+            character in filename
+            for character in ["/", "<", ">", ":", '"', "\\", "|", "?", "*"]
+        )
+    )

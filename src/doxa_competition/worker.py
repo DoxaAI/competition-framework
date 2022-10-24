@@ -68,9 +68,13 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
 async def process_evaluation(
     driver: EvaluationDriver, event: EvaluationEvent, umpire_channel_connection: dict
 ):
-    await driver.startup(make_umpire_channel(**umpire_channel_connection))
-    await driver._handle(event)
-    await driver.teardown()
+    try:
+        await driver.startup(make_umpire_channel(**umpire_channel_connection))
+        await driver._handle(event)
+    except Exception as e:
+        driver._handle_error(e, "INTERNAL")
+    finally:
+        await driver.teardown()
 
 
 @click.command()

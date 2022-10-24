@@ -12,6 +12,18 @@ from doxa_competition.proto.nodeapi import (
     ShutdownNodeRequest,
     SpawnApplicationRequest,
 )
+from doxa_competition.utils import is_valid_filename
+
+
+class AgentError(Exception):
+    def __init__(
+        self,
+        message: str,
+        agent_id: int = None,
+        *args: object,
+    ) -> None:
+        super().__init__(message, *args)
+        self.agent_id = agent_id
 
 
 class Node:
@@ -86,12 +98,37 @@ class Node:
             metadata={"x-hearth-auth": self.auth_token},
         )
 
+    async def run_python_application(self, args: List[str] = None):
+        if not is_valid_filename(self.agent_metadata.get("entrypoint", "")):
+            raise AgentError(message="Bad entrypoint filename.", agent_id=self.agent_id)
+
+        return await self.run_command(
+            args=[
+                "python3",
+                self.agent_metadata["entrypoint"],
+            ]
+            + (args if args else [])
+        )
+
     async def read_stdout(self):
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=True, stderr=False),
             metadata={"x-hearth-auth": self.auth_token},
         ):
             yield response.line
+
+    async def read_stderr(self):
+        async for response in self.node_api.capture_output(
+            CaptureOutputRequest(stdout=False, stderr=True),
+            metadata={"x-hearth-auth": self.auth_token},
+        ):
+            yield response.line
+
+    async def read_stdout_all(self) -> str:
+        return "".join([result async for result in self.read_stdout()])
+
+    async def read_stderr_all(self) -> str:
+        return "".join([result async for result in self.read_stderr()])
 
     async def get_file(self, path: str):
         async for response in self.node_api.get_file(

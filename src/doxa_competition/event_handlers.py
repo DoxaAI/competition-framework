@@ -77,6 +77,17 @@ class AgentEventHandler(EventHandler):
         }
 
 
+class SimpleAgentEventHandler(AgentEventHandler):
+    """
+    This is the simplest agent event handler implementation. It is
+    suitable for single-agent competitions that do not require any
+    more complex agent activation or deactivation logic.
+    """
+
+    async def on_activation(self, event: Event) -> None:
+        await self.context.schedule_evaluation([event.agent_id])
+
+
 class EvaluationEventHandler(EventHandler):
     """A handler for evaluation events."""
 
@@ -92,3 +103,13 @@ class EvaluationEventHandler(EventHandler):
 
     def extract_routes(self) -> Dict[str, TopicHandler]:
         return {"evaluation-events": self.handle}
+
+
+class ApatheticEvaluationEventHandler(EvaluationEventHandler):
+    """
+    This evaluation event handler does not do anything with
+    evaluation events that come in. It is totally indifferent.
+    """
+
+    async def handle(self, event: Event) -> None:
+        pass

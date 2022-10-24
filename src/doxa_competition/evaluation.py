@@ -7,7 +7,7 @@ import pulsar
 from grpclib.client import Channel
 
 from doxa_competition.events import EvaluationEvent
-from doxa_competition.execution import Node
+from doxa_competition.execution import AgentError, Node
 from doxa_competition.proto.umpire.agent import (
     GetAgentResultsRequest,
     SetAgentResultRequest,
@@ -118,6 +118,57 @@ class EvaluationDriver:
             extra=event.extra,
         )
 
+    def _handle_error(
+        self, exception: Exception, error_type: str = None, extra: dict = None
+    ) -> None:
+        event_type = "_ERROR"
+        if error_type:
+            event_type += f"_{error_type.upper()}"
+
+        body = extra if extra else {}
+
+        try:
+            self.emit_evaluation_event(
+                event_type=event_type,
+                body={
+                    **body,
+                    "exception": {
+                        "type": exception.__class__.__name__,
+                        "traceback": "".join(
+                            traceback.format_exception(
+                                None, exception, exception.__traceback__
+                            )
+                        ),
+                    },
+                },
+            )
+        except:
+            print(
+                f"Unable to gracefully handle an Exception of type {exception.__class__.__name__}."
+            )
+
+    async def _handle_agent_error(self, error: AgentError):
+        node = next(
+            (node for node in self._context.nodes if node.agent_id == error.agent_id),
+            None,
+        )
+        try:
+            if not node:
+                raise RuntimeError("Oops, a node has disappeared!")
+
+            self._handle_error(
+                error,
+                error_type="AGENT",
+                extra={
+                    "agent_id": error.agent_id,
+                    "stderr": await node.read_stderr_all(),
+                },
+            )
+        except:
+            self._handle_error(
+                error, error_type="AGENT", extra={"agent_id": error.agent_id}
+            )
+
     async def _handle(self, event: EvaluationEvent) -> None:
         """The internal handler for evaluation requests, running in a separate process.
 
@@ -141,18 +192,10 @@ class EvaluationDriver:
         # call userland code to handle the evaluation
         try:
             await self.handle(self._context)
+        except AgentError as e:
+            self._handle_agent_error(e)
         except Exception as e:
-            self.emit_evaluation_event(
-                event_type="_ERROR",
-                body={
-                    "exception": {
-                        "type": e.__class__.__name__,
-                        "traceback": "".join(
-                            traceback.format_exception(None, e, e.__traceback__)
-                        ),
-                    }
-                },
-            )
+            self._handle_error(e)
 
         if self.autoshutdown:
             # clean up Hearth node instances
@@ -219,7 +262,10 @@ class EvaluationDriver:
     async def teardown(self) -> None:
         """Tears down the evaluation driver."""
 
-        self._event_producer.close()
+        try:
+            self._event_producer.close()
+        except:
+            print("Unable to close event producer.")
 
         try:
             await UmpireSchedulingServiceStub(self._umpire_channel).complete_evaluation(
