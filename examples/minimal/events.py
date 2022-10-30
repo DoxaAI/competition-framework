@@ -1,6 +1,7 @@
 from doxa_competition.competition import Competition
-from doxa_competition.event import AgentEvent, Event
-from doxa_competition.event_handlers import AgentEventHandler, EvaluationEventHandler
+from doxa_competition.event import Event
+from doxa_competition.event.handlers import AgentEventHandler, EvaluationEventHandler
+from doxa_competition.events import AgentEvent
 
 
 class MinimalAgentEventHandler(AgentEventHandler):

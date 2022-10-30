@@ -3,8 +3,13 @@ import logging
 import os
 
 import pulsar
+from grpclib.client import Channel
 
 PULSAR_PATH = "pulsar://pulsar:6650"
+
+
+def make_umpire_channel(host: str = "umpire", port: int = 80) -> Channel:
+    return Channel(host=host, port=port)
 
 
 def make_pulsar_client(pulsar_path: str = None) -> pulsar.Client:

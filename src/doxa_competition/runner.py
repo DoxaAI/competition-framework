@@ -7,10 +7,10 @@ from grpclib.client import Channel
 
 from doxa_competition.competition import Competition
 from doxa_competition.context import CompetitionContext
-from doxa_competition.event import Event, PulsarEvent
-from doxa_competition.event_router import EventRouter
-from doxa_competition.umpire import make_umpire_channel
-from doxa_competition.utils import make_pulsar_client
+from doxa_competition.event import Event
+from doxa_competition.event.router import EventRouter
+from doxa_competition.events import PulsarEvent
+from doxa_competition.utils import make_pulsar_client, make_umpire_channel
 
 
 class CompetitionRunner:
@@ -94,6 +94,8 @@ class CompetitionRunner:
             consumer_type=ConsumerType.Shared,
             schema=pulsar.schema.BytesSchema(),
         )
+
+        print("[DOXA Competition Events] Started listening for Pulsar events")
 
         try:
             while True:

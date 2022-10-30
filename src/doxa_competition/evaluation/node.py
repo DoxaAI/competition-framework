@@ -1,9 +1,10 @@
 import os
-from typing import List, Tuple
+from typing import AsyncIterable, List, Tuple
 from urllib.parse import urlsplit
 
 from grpclib.client import Channel
 
+from doxa_competition.evaluation.errors import AgentError
 from doxa_competition.proto.nodeapi import (
     CaptureOutputRequest,
     DownloadApplicationRequest,
@@ -11,19 +12,9 @@ from doxa_competition.proto.nodeapi import (
     NodeApiStub,
     ShutdownNodeRequest,
     SpawnApplicationRequest,
+    WriteInputRequest,
 )
 from doxa_competition.utils import is_valid_filename
-
-
-class AgentError(Exception):
-    def __init__(
-        self,
-        message: str,
-        agent_id: int = None,
-        *args: object,
-    ) -> None:
-        super().__init__(message, *args)
-        self.agent_id = agent_id
 
 
 class Node:
@@ -48,6 +39,7 @@ class Node:
         storage_endpoint: str,
         upload_id: int,
         auth_token: str,
+        timeout: float = None,
     ) -> None:
         self.participant_index = participant_index
         self.agent_id = agent_id
@@ -57,6 +49,7 @@ class Node:
         self.storage_endpoint = storage_endpoint
         self.upload_id = upload_id
         self.auth_token = auth_token
+        self.timeout = timeout
 
         hostname, port = self.parse_endpoint(self.endpoint)
 
@@ -81,6 +74,7 @@ class Node:
                 gzip=self.is_gzip(),
             ),
             metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         )
 
     async def run_command(self, args: List[str], environment: List[str] = None):
@@ -96,6 +90,7 @@ class Node:
                 env_vars=environment if environment is not None else [],
             ),
             metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         )
 
     async def run_python_application(self, args: List[str] = None):
@@ -110,10 +105,28 @@ class Node:
             + (args if args else [])
         )
 
+    async def write_to_stdin(self, line: str):
+        async def wrapper():
+            yield line
+
+        return await self.write_lines_to_stdin(wrapper())
+
+    async def write_lines_to_stdin(self, lines: AsyncIterable[str]):
+        async def wrapper():
+            async for line in lines:
+                yield WriteInputRequest(data=line.encode("utf-8"))
+
+        return await self.node_api.write_input(
+            wrapper(),
+            metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
+        )
+
     async def read_stdout(self):
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=True, stderr=False),
             metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         ):
             yield response.line
 
@@ -121,6 +134,7 @@ class Node:
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=False, stderr=True),
             metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         ):
             yield response.line
 
@@ -134,11 +148,14 @@ class Node:
         async for response in self.node_api.get_file(
             FileRequest(path=path),
             metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         ):
             yield response.data
 
     async def release(self):
         await self.node_api.shutdown_node(
-            ShutdownNodeRequest(), metadata={"x-hearth-auth": self.auth_token}
+            ShutdownNodeRequest(),
+            metadata={"x-hearth-auth": self.auth_token},
+            timeout=self.timeout,
         )
         self.node_channel.close()

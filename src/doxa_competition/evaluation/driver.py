@@ -1,78 +1,21 @@
+import asyncio
 import json
 import traceback
 from datetime import datetime
-from typing import List
 
 import pulsar
-from grpclib.client import Channel
-
+from doxa_competition.context import CompetitionContext
+from doxa_competition.evaluation.context import EvaluationContext
+from doxa_competition.evaluation.errors import AgentError
 from doxa_competition.events import EvaluationEvent
-from doxa_competition.execution import AgentError, Node
-from doxa_competition.proto.umpire.agent import (
-    GetAgentResultsRequest,
-    SetAgentResultRequest,
-    UmpireAgentServiceStub,
-)
 from doxa_competition.proto.umpire.scheduling import (
     CompleteEvaluationRequest,
     UmpireSchedulingServiceStub,
 )
-from doxa_competition.proto.umpire.scoreboard import (
-    GetCompetitionResultsRequest,
-    UmpireScoreboardServiceStub,
-)
-from doxa_competition.utils import send_pulsar_message
+from grpclib.client import Channel
 
 
-class EvaluationContext:
-    """The evaluation context used in evaluation driver implementations."""
-
-    id: int
-    batch_id: int
-    queued_at: datetime
-    nodes: List[Node]
-    extra: dict
-
-    def __init__(
-        self,
-        id: int,
-        batch_id: int,
-        queued_at: datetime,
-        participants: List[dict],
-        extra: dict = None,
-    ) -> None:
-        self.id = id
-        self.batch_id = batch_id
-        self.queued_at = queued_at
-        self.nodes = [
-            Node(
-                participant_index=participant["participant_index"],
-                agent_id=participant["agent_id"],
-                agent_metadata=participant["agent_metadata"],
-                enrolment_id=participant["enrolment_id"],
-                endpoint=participant["endpoint"],
-                storage_endpoint=participant["storage_endpoint"],
-                upload_id=participant["upload_id"],
-                auth_token=participant["auth_token"],
-            )
-            for participant in participants
-        ]
-        self.extra = extra if extra is not None else {}
-
-    async def fetch_agents(self) -> None:
-        """Makes each node download its associated agent from the relevant storage node."""
-
-        for node in self.nodes:
-            await node.fetch_agent()
-
-    async def release_nodes(self) -> None:
-        """Releases Hearth nodes once evaluation terminates."""
-
-        for node in self.nodes:
-            await node.release()
-
-
-class EvaluationDriver:
+class EvaluationDriver(CompetitionContext):
     """A base driver for evaluations to be extended by competition implementers."""
 
     competition_tag: str
@@ -82,6 +25,9 @@ class EvaluationDriver:
 
     autofetch: bool = True
     autoshutdown: bool = True
+
+    # gRPC request timeout
+    timeout: float = 10 * 60
 
     def __init__(
         self,
@@ -109,7 +55,7 @@ class EvaluationDriver:
 
         raise NotImplementedError()
 
-    def _make_context(self, event: EvaluationEvent) -> EvaluationContext:
+    def _make_evaluation_context(self, event: EvaluationEvent) -> EvaluationContext:
         return EvaluationContext(
             id=event.evaluation_id,
             batch_id=event.batch_id,
@@ -180,7 +126,7 @@ class EvaluationDriver:
         """
 
         # create the evaluation context
-        self._context = self._make_context(event)
+        self._context = self._make_evaluation_context(event)
 
         # emit _START event
         self.emit_evaluation_event(event_type="_START", body={})
@@ -192,6 +138,8 @@ class EvaluationDriver:
         # call userland code to handle the evaluation
         try:
             await self.handle(self._context)
+        except asyncio.TimeoutError as e:
+            self._handle_error(e, error_type="AGENT_TIMEOUT")
         except AgentError as e:
             self._handle_agent_error(e)
         except Exception as e:
@@ -225,38 +173,6 @@ class EvaluationDriver:
                 }
             ).encode("utf-8"),
             properties if properties is not None else {},
-        )
-
-    def emit_event(self, topic_name: str, body: dict, properties: dict = None) -> None:
-        """Sends a Pulsar message. This should only be used for events other than
-        evaluation events for which emit_evaluation_event() should be used.
-
-        Args:
-            topic_name (str): The topic name
-            body (dict): _description_
-            properties (dict, optional): _description_. Defaults to None.
-        """
-
-        send_pulsar_message(
-            client=self._pulsar_client,
-            topic=f"persistent://public/default/competition-{self.competition_tag}-{topic_name}",
-            body=body,
-            properties=properties if properties is not None else {},
-        )
-
-    async def get_competition_results(self):
-        return await UmpireScoreboardServiceStub(
-            self._umpire_channel
-        ).get_competition_results(GetCompetitionResultsRequest(self.competition_tag))
-
-    async def get_agent_results(self, agent_id: int):
-        return await UmpireAgentServiceStub(self._umpire_channel).get_agent_results(
-            GetAgentResultsRequest(agent_id)
-        )
-
-    async def set_agent_result(self, agent_id: int, metric: str, result: int):
-        return await UmpireAgentServiceStub(self._umpire_channel).set_agent_result(
-            SetAgentResultRequest(agent_id, metric, result)
         )
 
     async def teardown(self) -> None:

@@ -1,9 +1,9 @@
 from typing import List
 
 from doxa_competition.context import CompetitionContext
-from doxa_competition.event import EventHandler, Extension
-from doxa_competition.event_handlers import AgentEventHandler, EvaluationEventHandler
-from doxa_competition.event_router import EventRouter
+from doxa_competition.event.handler import EventHandler, Extension
+from doxa_competition.event.handlers import AgentEventHandler, EvaluationEventHandler
+from doxa_competition.event.router import EventRouter
 
 
 class Competition:

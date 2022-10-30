@@ -1,6 +1,6 @@
 from typing import Dict, List, Pattern, Union
 
-from doxa_competition.event import TopicHandler
+from doxa_competition.event.handler import TopicHandler
 
 
 class EventRouter:

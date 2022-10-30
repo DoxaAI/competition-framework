@@ -40,6 +40,16 @@ class ShutdownNodeResponse(betterproto.Message):
 
 
 @dataclass(eq=False, repr=False)
+class WriteInputRequest(betterproto.Message):
+    data: bytes = betterproto.bytes_field(1)
+
+
+@dataclass(eq=False, repr=False)
+class WriteInputResponse(betterproto.Message):
+    pass
+
+
+@dataclass(eq=False, repr=False)
 class DownloadApplicationRequest(betterproto.Message):
     """
     Tells the hearth node to download the application from the specified URL
@@ -220,6 +230,26 @@ class NodeApiStub(betterproto.ServiceStub):
         ):
             yield response
 
+    async def write_input(
+        self,
+        write_input_request_iterator: Union[
+            AsyncIterable["WriteInputRequest"], Iterable["WriteInputRequest"]
+        ],
+        *,
+        timeout: Optional[float] = None,
+        deadline: Optional["Deadline"] = None,
+        metadata: Optional["MetadataLike"] = None
+    ) -> "WriteInputResponse":
+        return await self._stream_unary(
+            "/nodeapi.NodeAPI/WriteInput",
+            write_input_request_iterator,
+            WriteInputRequest,
+            WriteInputResponse,
+            timeout=timeout,
+            deadline=deadline,
+            metadata=metadata,
+        )
+
     async def shutdown_node(
         self,
         shutdown_node_request: "ShutdownNodeRequest",
@@ -275,6 +305,11 @@ class NodeApiBase(ServiceBase):
     ) -> AsyncIterator["ApplicationOutput"]:
         raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
 
+    async def write_input(
+        self, write_input_request_iterator: AsyncIterator["WriteInputRequest"]
+    ) -> "WriteInputResponse":
+        raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
+
     async def shutdown_node(
         self, shutdown_node_request: "ShutdownNodeRequest"
     ) -> "ShutdownNodeResponse":
@@ -321,6 +356,13 @@ class NodeApiBase(ServiceBase):
             request,
         )
 
+    async def __rpc_write_input(
+        self, stream: "grpclib.server.Stream[WriteInputRequest, WriteInputResponse]"
+    ) -> None:
+        request = stream.__aiter__()
+        response = await self.write_input(request)
+        await stream.send_message(response)
+
     async def __rpc_shutdown_node(
         self, stream: "grpclib.server.Stream[ShutdownNodeRequest, ShutdownNodeResponse]"
     ) -> None:
@@ -361,6 +403,12 @@ class NodeApiBase(ServiceBase):
                 grpclib.const.Cardinality.UNARY_STREAM,
                 CaptureOutputRequest,
                 ApplicationOutput,
+            ),
+            "/nodeapi.NodeAPI/WriteInput": grpclib.const.Handler(
+                self.__rpc_write_input,
+                grpclib.const.Cardinality.STREAM_UNARY,
+                WriteInputRequest,
+                WriteInputResponse,
             ),
             "/nodeapi.NodeAPI/ShutdownNode": grpclib.const.Handler(
                 self.__rpc_shutdown_node,

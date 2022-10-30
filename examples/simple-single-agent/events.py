@@ -1,5 +1,5 @@
 from doxa_competition.competition import Competition
-from doxa_competition.event_handlers import (
+from doxa_competition.event.handlers import (
     ApatheticEvaluationEventHandler,
     SimpleAgentEventHandler,
 )

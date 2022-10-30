@@ -1,6 +1,8 @@
 from typing import Dict
 
-from doxa_competition.event import AgentEvent, Event, EventHandler, TopicHandler
+from doxa_competition.event import Event
+from doxa_competition.event.handler import EventHandler, TopicHandler
+from doxa_competition.events import AgentEvent
 
 
 class AgentEventHandler(EventHandler):

@@ -5,16 +5,26 @@ from typing import List
 import pulsar
 from grpclib.client import Channel
 
+from doxa_competition.proto.umpire.agent import (
+    AddToAgentResultRequest,
+    GetAgentResultsRequest,
+    SetAgentResultRequest,
+    UmpireAgentServiceStub,
+)
 from doxa_competition.proto.umpire.scheduling import (
     EvaluationSubmission,
     ScheduleEvaluationBatchRequest,
     UmpireSchedulingServiceStub,
 )
+from doxa_competition.proto.umpire.scoreboard import (
+    GetCompetitionResultsRequest,
+    UmpireScoreboardServiceStub,
+)
 from doxa_competition.utils import send_pulsar_message
 
 
 @dataclass
-class Evaluation:
+class SchedulableEvaluation:
     agent_ids: List[int]
     metadata: dict
 
@@ -53,7 +63,7 @@ class CompetitionContext:
     def emit_competition_event(
         self, topic_name: str, body: dict, properties: dict = None
     ) -> None:
-        """Sends a competition event.
+        """Emits a competition event.
 
         Args:
             topic_name (str): The competition topic name.
@@ -65,15 +75,15 @@ class CompetitionContext:
             client=self._pulsar_client,
             topic=f"persistent://public/default/competition-{self.competition_tag}-{topic_name}",
             body=body,
-            properties=properties,
+            properties=properties if properties is not None else {},
         )
 
     async def schedule_evaluation(self, agent_ids: List[int], metadata: dict = None):
         return await self.schedule_evaluation_batch(
-            [Evaluation(agent_ids, metadata if metadata is not None else {})]
+            [SchedulableEvaluation(agent_ids, metadata if metadata is not None else {})]
         )
 
-    async def schedule_evaluation_batch(self, evaluations: List[Evaluation]):
+    async def schedule_evaluation_batch(self, evaluations: List[SchedulableEvaluation]):
         return await UmpireSchedulingServiceStub(
             self._umpire_channel
         ).schedule_evaluation_batch(
@@ -86,4 +96,24 @@ class CompetitionContext:
                     for evaluation in evaluations
                 ],
             )
+        )
+
+    async def get_competition_results(self):
+        return await UmpireScoreboardServiceStub(
+            self._umpire_channel
+        ).get_competition_results(GetCompetitionResultsRequest(self.competition_tag))
+
+    async def get_agent_results(self, agent_id: int):
+        return await UmpireAgentServiceStub(self._umpire_channel).get_agent_results(
+            GetAgentResultsRequest(agent_id)
+        )
+
+    async def set_agent_result(self, agent_id: int, metric: str, result: int):
+        return await UmpireAgentServiceStub(self._umpire_channel).set_agent_result(
+            SetAgentResultRequest(agent_id, metric, result)
+        )
+
+    async def add_to_agent_result(self, agent_id: int, metric: str, result: int):
+        return await UmpireAgentServiceStub(self._umpire_channel).add_to_agent_result(
+            AddToAgentResultRequest(agent_id, metric, result)
         )
