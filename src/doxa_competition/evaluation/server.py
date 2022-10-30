@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Type
 from uuid import uuid4
 
 from doxa_competition.evaluation import EvaluationDriver
@@ -76,7 +77,7 @@ async def process_evaluation(
 def make_server(
     competition_tag: str,
     driver_endpoint: str,
-    Driver: EvaluationDriver,
+    Driver: Type[EvaluationDriver],
     workers: int,
     pulsar_path: str,
     umpire_host: str,

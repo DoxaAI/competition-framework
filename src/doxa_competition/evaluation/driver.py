@@ -141,7 +141,7 @@ class EvaluationDriver(CompetitionContext):
         except asyncio.TimeoutError as e:
             self._handle_error(e, error_type="AGENT_TIMEOUT")
         except AgentError as e:
-            self._handle_agent_error(e)
+            await self._handle_agent_error(e)
         except Exception as e:
             self._handle_error(e)
 

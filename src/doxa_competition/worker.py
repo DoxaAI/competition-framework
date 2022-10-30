@@ -58,10 +58,15 @@ def serve(
 
     driver_endpoint = endpoint if endpoint is not None else f"http://{host}:{port}/"
 
+    Driver = locate(driver)
+
+    if Driver is None:
+        raise RuntimeError("The driver class {driver} cannot be found.")
+
     app = make_server(
         competition_tag=competition_tag,
         driver_endpoint=driver_endpoint,
-        Driver=locate(driver),
+        Driver=Driver,
         workers=workers,
         pulsar_path=pulsar_path,
         umpire_host=umpire_host,

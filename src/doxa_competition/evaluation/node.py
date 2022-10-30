@@ -2,8 +2,6 @@ import os
 from typing import AsyncIterable, List, Tuple
 from urllib.parse import urlsplit
 
-from grpclib.client import Channel
-
 from doxa_competition.evaluation.errors import AgentError
 from doxa_competition.proto.nodeapi import (
     CaptureOutputRequest,
@@ -15,6 +13,7 @@ from doxa_competition.proto.nodeapi import (
     WriteInputRequest,
 )
 from doxa_competition.utils import is_valid_filename
+from grpclib.client import Channel
 
 
 class Node:
@@ -105,9 +104,9 @@ class Node:
             + (args if args else [])
         )
 
-    async def write_to_stdin(self, line: str):
+    async def write_to_stdin(self, line: str, end: str = "\n"):
         async def wrapper():
-            yield line
+            yield f"{line}{end}"
 
         return await self.write_lines_to_stdin(wrapper())
 
