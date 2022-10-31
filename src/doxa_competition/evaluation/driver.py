@@ -145,10 +145,6 @@ class EvaluationDriver(CompetitionContext):
         except Exception as e:
             self._handle_error(e)
 
-        if self.autoshutdown:
-            # clean up Hearth node instances
-            await self._context.release_nodes()
-
         # emit _END event
         self.emit_evaluation_event(event_type="_END", body={})
 
@@ -178,14 +174,22 @@ class EvaluationDriver(CompetitionContext):
     async def teardown(self) -> None:
         """Tears down the evaluation driver."""
 
+        if self.autoshutdown:
+            # clean up Hearth node instances
+            await self._context.release_nodes()
+
         try:
             self._event_producer.close()
         except:
-            print("Unable to close event producer.")
+            print("[ERROR] Unable to close event producer.")
 
         try:
             await UmpireSchedulingServiceStub(self._umpire_channel).complete_evaluation(
                 CompleteEvaluationRequest(evaluation_id=self._context.id)
+            )
+        except Exception as e:
+            print(
+                f"[ERROR] An error occurred while notifying Umpire of the completion of evaluation {self._context.id}: {str(e)}"
             )
         finally:
             self._umpire_channel.close()

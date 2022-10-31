@@ -51,4 +51,9 @@ class EvaluationContext:
         """Releases Hearth nodes once evaluation terminates."""
 
         for node in self.nodes:
-            await node.release()
+            # the try-block is inside the loop because we still want
+            # to try releasing the other nodes even if we fail on one!
+            try:
+                await node.release()
+            except:
+                print(f"[ERROR] Could not release node with token: {node.auth_token}")
