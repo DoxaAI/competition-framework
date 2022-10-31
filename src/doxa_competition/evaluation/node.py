@@ -152,9 +152,11 @@ class Node:
             yield response.data
 
     async def release(self):
-        await self.node_api.shutdown_node(
-            ShutdownNodeRequest(),
-            metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
-        )
-        self.node_channel.close()
+        try:
+            await self.node_api.shutdown_node(
+                ShutdownNodeRequest(),
+                metadata={"x-hearth-auth": self.auth_token},
+                timeout=self.timeout,
+            )
+        finally:
+            self.node_channel.close()
