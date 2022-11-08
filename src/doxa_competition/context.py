@@ -11,6 +11,11 @@ from doxa_competition.proto.umpire.agent import (
     SetAgentResultRequest,
     UmpireAgentServiceStub,
 )
+from doxa_competition.proto.umpire.evaluation import (
+    GetCompetitionEvaluationResultsRequest,
+    SetEvaluationResultRequest,
+    UmpireEvaluationServiceStub,
+)
 from doxa_competition.proto.umpire.scheduling import (
     EvaluationSubmission,
     ScheduleEvaluationBatchRequest,
@@ -116,4 +121,20 @@ class CompetitionContext:
     async def add_to_agent_result(self, agent_id: int, metric: str, result: int):
         return await UmpireAgentServiceStub(self._umpire_channel).add_to_agent_result(
             AddToAgentResultRequest(agent_id, metric, result)
+        )
+
+    async def get_competition_evaluation_results(self):
+        return await UmpireEvaluationServiceStub(
+            self._umpire_channel
+        ).get_competition_evaluation_results(
+            GetCompetitionEvaluationResultsRequest(self.competition_tag)
+        )
+
+    async def set_evaluation_result(
+        self, evaluation_id: int, agent_id: int, metric: str, result: int
+    ):
+        return await UmpireEvaluationServiceStub(
+            self._umpire_channel
+        ).set_evaluation_result(
+            SetEvaluationResultRequest(evaluation_id, agent_id, metric, result)
         )

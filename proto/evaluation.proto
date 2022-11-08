@@ -1,0 +1,32 @@
+syntax = "proto3";
+package umpire.evaluation;
+
+service UmpireEvaluationService {
+  rpc GetCompetitionEvaluationResults(GetCompetitionEvaluationResultsRequest) returns (GetCompetitionEvaluationResultsResponse);
+  rpc SetEvaluationResult(SetEvaluationResultRequest) returns (SetEvaluationResultResponse);
+}
+
+// Fetch evaluation results
+
+message EvaluationResult {
+  int32 id = 1;
+  int32 agent_id = 2;
+  string metric = 3;
+  int64 result = 4;
+  string created_at = 5;
+}
+
+message GetCompetitionEvaluationResultsRequest { string competition_tag = 1; }
+
+message GetCompetitionEvaluationResultsResponse { repeated EvaluationResult results = 1; }
+
+// Set evaluation results
+
+message SetEvaluationResultRequest {
+  int32 evaluation_id = 1;
+  int32 agent_id = 2;
+  string metric = 3;
+  int64 result = 4;
+}
+
+message SetEvaluationResultResponse {}
