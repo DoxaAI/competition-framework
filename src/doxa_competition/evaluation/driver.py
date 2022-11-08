@@ -4,6 +4,8 @@ import traceback
 from datetime import datetime
 
 import pulsar
+from grpclib.client import Channel
+
 from doxa_competition.context import CompetitionContext
 from doxa_competition.evaluation.context import EvaluationContext
 from doxa_competition.evaluation.errors import AgentError
@@ -12,7 +14,6 @@ from doxa_competition.proto.umpire.scheduling import (
     CompleteEvaluationRequest,
     UmpireSchedulingServiceStub,
 )
-from grpclib.client import Channel
 
 
 class EvaluationDriver(CompetitionContext):
@@ -169,6 +170,11 @@ class EvaluationDriver(CompetitionContext):
                 }
             ).encode("utf-8"),
             properties if properties is not None else {},
+        )
+
+    async def set_result(self, agent_id: int, metric: str, result: int):
+        return await self.set_evaluation_result(
+            self._context.id, agent_id, metric, result
         )
 
     async def teardown(self) -> None:

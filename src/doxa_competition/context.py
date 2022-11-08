@@ -109,9 +109,11 @@ class CompetitionContext:
         ).get_competition_results(GetCompetitionResultsRequest(self.competition_tag))
 
     async def get_agent_results(self, agent_id: int):
-        return await UmpireAgentServiceStub(self._umpire_channel).get_agent_results(
-            GetAgentResultsRequest(agent_id)
-        )
+        return (
+            await UmpireAgentServiceStub(self._umpire_channel).get_agent_results(
+                GetAgentResultsRequest(agent_id)
+            )
+        ).results
 
     async def set_agent_result(self, agent_id: int, metric: str, result: int):
         return await UmpireAgentServiceStub(self._umpire_channel).set_agent_result(
@@ -124,11 +126,13 @@ class CompetitionContext:
         )
 
     async def get_competition_evaluation_results(self):
-        return await UmpireEvaluationServiceStub(
-            self._umpire_channel
-        ).get_competition_evaluation_results(
-            GetCompetitionEvaluationResultsRequest(self.competition_tag)
-        )
+        return (
+            await UmpireEvaluationServiceStub(
+                self._umpire_channel
+            ).get_competition_evaluation_results(
+                GetCompetitionEvaluationResultsRequest(self.competition_tag)
+            )
+        ).results
 
     async def set_evaluation_result(
         self, evaluation_id: int, agent_id: int, metric: str, result: int
