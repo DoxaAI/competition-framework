@@ -10,10 +10,11 @@ service UmpireEvaluationService {
 
 message EvaluationResult {
   int32 id = 1;
-  int32 agent_id = 2;
-  string metric = 3;
-  int64 result = 4;
-  string created_at = 5;
+  int32 evaluation_id = 2;
+  int32 agent_id = 3;
+  string metric = 4;
+  int64 result = 5;
+  string created_at = 6;
 }
 
 message GetCompetitionEvaluationResultsRequest { string competition_tag = 1; }

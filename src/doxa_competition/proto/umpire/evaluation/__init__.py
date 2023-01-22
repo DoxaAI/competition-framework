@@ -23,10 +23,11 @@ if TYPE_CHECKING:
 @dataclass(eq=False, repr=False)
 class EvaluationResult(betterproto.Message):
     id: int = betterproto.int32_field(1)
-    agent_id: int = betterproto.int32_field(2)
-    metric: str = betterproto.string_field(3)
-    result: int = betterproto.int64_field(4)
-    created_at: str = betterproto.string_field(5)
+    evaluation_id: int = betterproto.int32_field(2)
+    agent_id: int = betterproto.int32_field(3)
+    metric: str = betterproto.string_field(4)
+    result: int = betterproto.int64_field(5)
+    created_at: str = betterproto.string_field(6)
 
 
 @dataclass(eq=False, repr=False)
