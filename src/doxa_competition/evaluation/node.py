@@ -2,6 +2,8 @@ import os
 from typing import AsyncIterable, List, Tuple
 from urllib.parse import urlsplit
 
+from grpclib.client import Channel
+
 from doxa_competition.evaluation.errors import AgentError
 from doxa_competition.proto.nodeapi import (
     CaptureOutputRequest,
@@ -13,7 +15,6 @@ from doxa_competition.proto.nodeapi import (
     WriteInputRequest,
 )
 from doxa_competition.utils import is_valid_filename
-from grpclib.client import Channel
 
 
 class Node:
@@ -138,10 +139,10 @@ class Node:
             yield response.line
 
     async def read_stdout_all(self) -> str:
-        return "".join([result async for result in self.read_stdout()])
+        return "\n".join([result async for result in self.read_stdout()])
 
     async def read_stderr_all(self) -> str:
-        return "".join([result async for result in self.read_stderr()])
+        return "\n".join([result async for result in self.read_stderr()])
 
     async def get_file(self, path: str):
         async for response in self.node_api.get_file(
