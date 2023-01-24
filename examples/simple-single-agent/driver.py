@@ -16,7 +16,7 @@ class SimpleSingleAgentEvaluationDriver(EvaluationDriver):
             out = (await node.read_stdout_all()).strip()
             self.emit_evaluation_event("OUT", {"stdout": out})
         except:
-            raise AgentError("Bad user output.")
+            raise AgentError("Bad user output.", participant=node.participant_index)
 
         # set an agent result
         await self.set_agent_result(node.agent_id, "result", randint(0, 1000))

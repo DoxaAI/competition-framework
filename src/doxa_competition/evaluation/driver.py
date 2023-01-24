@@ -95,10 +95,18 @@ class EvaluationDriver(CompetitionContext):
             )
 
     async def _handle_agent_error(self, error: AgentError):
-        node = next(
-            (node for node in self._context.nodes if node.agent_id == error.agent_id),
-            None,
-        )
+        if error.participant_index is not None:
+            node = self._context.nodes[error.participant_index]
+        else:
+            node = next(
+                (
+                    node
+                    for node in self._context.nodes
+                    if node.agent_id == error.agent_id
+                ),
+                None,
+            )
+
         try:
             if not node:
                 raise RuntimeError("Oops, a node has disappeared!")
@@ -107,13 +115,17 @@ class EvaluationDriver(CompetitionContext):
                 error,
                 error_type="AGENT",
                 extra={
-                    "agent_id": error.agent_id,
+                    "agent_id": node.agent_id,
+                    "enrolment_id": node.enrolment_id,
+                    "participant_index": node.participant_index,
                     "stderr": await node.read_stderr_all(),
                 },
             )
         except:
             self._handle_error(
-                error, error_type="AGENT", extra={"agent_id": error.agent_id}
+                error,
+                error_type="AGENT_UNKNOWN",
+                extra={},
             )
 
     async def _handle(self, event: EvaluationEvent) -> None:
