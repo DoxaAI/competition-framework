@@ -81,6 +81,7 @@ class EvaluationDriver(CompetitionContext):
                     **body,
                     "exception": {
                         "type": exception.__class__.__name__,
+                        "message": str(exception),
                         "traceback": "".join(
                             traceback.format_exception(
                                 None, exception, exception.__traceback__
