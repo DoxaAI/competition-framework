@@ -98,7 +98,7 @@ class EvaluationDriver(CompetitionContext):
     async def _handle_agent_error(self, error: AgentError):
         if error.participant_index is not None:
             node = self._context.nodes[error.participant_index]
-        else:
+        elif error.agent_id is not None:
             node = next(
                 (
                     node
@@ -107,10 +107,12 @@ class EvaluationDriver(CompetitionContext):
                 ),
                 None,
             )
+        else:
+            node = None
 
         try:
             if not node:
-                raise RuntimeError("Oops, a node has disappeared!")
+                raise RuntimeError("Oops, a node is unknown!")
 
             self._handle_error(
                 error,
