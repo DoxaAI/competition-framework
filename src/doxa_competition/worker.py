@@ -1,4 +1,5 @@
 from pydoc import locate
+from typing import List, Tuple
 
 import click
 
@@ -7,14 +8,12 @@ from doxa_competition.evaluation.server import make_server
 
 @click.command()
 @click.option(
-    "--competition_tag", "-t", type=str, required=True, help="The competition tag."
-)
-@click.option(
-    "--driver",
-    "-d",
+    "--competition",
+    "-c",
     type=str,
-    required=True,
-    help="The fully qualified class name of the competition driver.",
+    nargs=2,
+    multiple=True,
+    help="The competition tag and the fully qualified class name of its competition driver.",
 )
 @click.option("--host", "-h", type=str, default="0.0.0.0", help="The host to bind to.")
 @click.option("--port", "-p", type=int, default=8000, help="The port to run on.")
@@ -26,7 +25,7 @@ from doxa_competition.evaluation.server import make_server
     help="The endpoint with which to register with Umpire if it cannot be formed from the host and port.",
 )
 @click.option(
-    "--workers", "-w", type=int, default=4, help="Number of worker processes."
+    "--workers", "-w", type=int, default=1, help="Number of worker processes."
 )
 @click.option(
     "--pulsar-path",
@@ -44,8 +43,7 @@ from doxa_competition.evaluation.server import make_server
     "--umpire-port", type=int, default=80, help="The port on which Umpire is running."
 )
 def serve(
-    competition_tag: str,
-    driver: str,
+    competition: List[Tuple[str, str]],
     host: str,
     port: int,
     endpoint: str,
@@ -55,6 +53,13 @@ def serve(
     umpire_port: int,
 ):
     """A CLI tool for spinning up DOXA competition driver worker instances."""
+
+    if len(competition) != 1:
+        raise RuntimeError(
+            "Only a single competition driver per running instance is currently supported."
+        )
+
+    competition_tag, driver = competition[0]
 
     driver_endpoint = endpoint if endpoint is not None else f"http://{host}:{port}/"
 

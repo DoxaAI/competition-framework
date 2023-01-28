@@ -2,6 +2,11 @@ from datetime import datetime
 from typing import Type
 from uuid import uuid4
 
+from sanic import Sanic
+from sanic.log import logger
+from sanic.request import Request
+from sanic.response import json
+
 from doxa_competition.evaluation import EvaluationDriver
 from doxa_competition.events import EvaluationEvent
 from doxa_competition.proto.umpire.scheduling import (
@@ -10,10 +15,6 @@ from doxa_competition.proto.umpire.scheduling import (
     UmpireSchedulingServiceStub,
 )
 from doxa_competition.utils import make_pulsar_client, make_umpire_channel
-from sanic import Sanic
-from sanic.log import logger
-from sanic.request import Request
-from sanic.response import json
 
 
 def make_evaluation_event(request: Request) -> EvaluationEvent:
@@ -99,7 +100,7 @@ def make_server(
         await app.ctx.umpire_scheduling.register_driver(
             RegisterDriverRequest(
                 runtime_id=str(driver_uuid),
-                competition_tag=competition_tag,
+                competition_tags=[competition_tag],
                 endpoint=driver_endpoint,
                 workers=workers,
             )

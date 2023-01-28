@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
 @dataclass(eq=False, repr=False)
 class EvaluationSubmission(betterproto.Message):
+    """Schedule batch of evaluations"""
+
     agent_ids: List[int] = betterproto.int32_field(1)
     """Agent participants (the same agent may appear multiple times)"""
 
@@ -41,6 +43,8 @@ class ScheduleEvaluationBatchResponse(betterproto.Message):
 
 @dataclass(eq=False, repr=False)
 class CompleteEvaluationRequest(betterproto.Message):
+    """Mark an evaluation as completed (and release the worker)"""
+
     evaluation_id: int = betterproto.int32_field(1)
 
 
@@ -51,8 +55,10 @@ class CompleteEvaluationResponse(betterproto.Message):
 
 @dataclass(eq=False, repr=False)
 class RegisterDriverRequest(betterproto.Message):
+    """Driver registration & deregistration"""
+
     runtime_id: str = betterproto.string_field(1)
-    competition_tag: str = betterproto.string_field(2)
+    competition_tags: List[str] = betterproto.string_field(2)
     endpoint: str = betterproto.string_field(3)
     workers: int = betterproto.int32_field(4)
 
