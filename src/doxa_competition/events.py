@@ -8,6 +8,7 @@ class EvaluationEvent(Event):
         super().__init__(body, None, None)
 
         self.evaluation_id = body["id"]
+        self.competition_tag = body["competition_tag"]
         self.batch_id = body["batch_id"]
         self.queued_at = body["queued_at"]
         self.participants = body["participants"]

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Type
+from typing import Dict, Type
 from uuid import uuid4
 
 from sanic import Sanic
@@ -29,6 +29,7 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
 
     # {
     #     "id": ...,
+    #     "competition_tag": ...,
     #     "batch_id": ...,
     #     "queued_at": ...,
     #     "participants": [{
@@ -42,6 +43,7 @@ def make_evaluation_event(request: Request) -> EvaluationEvent:
     # }
 
     assert "id" in request.json
+    assert "competition_tag" in request.json
     assert "batch_id" in request.json
     assert "queued_at" in request.json
     assert "participants" in request.json
@@ -76,9 +78,8 @@ async def process_evaluation(
 
 
 def make_server(
-    competition_tag: str,
+    drivers: Dict[str, Type[EvaluationDriver]],
     driver_endpoint: str,
-    Driver: Type[EvaluationDriver],
     workers: int,
     pulsar_path: str,
     umpire_host: str,
@@ -100,7 +101,7 @@ def make_server(
         await app.ctx.umpire_scheduling.register_driver(
             RegisterDriverRequest(
                 runtime_id=str(driver_uuid),
-                competition_tags=[competition_tag],
+                competition_tags=list(drivers.keys()),
                 endpoint=driver_endpoint,
                 workers=workers,
             )
@@ -126,7 +127,7 @@ def make_server(
         return json(
             {
                 "uuid": str(driver_uuid),
-                "competitions": [competition_tag],
+                "competitions": list(drivers.keys()),
                 "started_at": start_time.isoformat(),
                 "workers": workers,
             }
@@ -136,14 +137,20 @@ def make_server(
     async def evaluation_handler(request: Request):
         try:
             event = make_evaluation_event(request)
+
+            if event.competition_tag not in drivers:
+                logger.warn(
+                    f"Failed to process evaluation for competition {event.competition_tag}"
+                )
+                raise ValueError
         except:
             return json({"success": False}, status=400)
 
         logger.info(f"Handling evaluation {event.evaluation_id}")
         request.app.add_task(
             process_evaluation(
-                driver=Driver(
-                    competition_tag,
+                driver=drivers[event.competition_tag](
+                    event.competition_tag,
                     request.app.ctx.pulsar_client,
                 ),
                 event=event,

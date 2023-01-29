@@ -54,24 +54,20 @@ def serve(
 ):
     """A CLI tool for spinning up DOXA competition driver worker instances."""
 
-    if len(competition) != 1:
-        raise RuntimeError(
-            "Only a single competition driver per running instance is currently supported."
-        )
-
-    competition_tag, driver = competition[0]
+    if len(competition) < 1:
+        raise RuntimeError("You must register at least one competition.")
 
     driver_endpoint = endpoint if endpoint is not None else f"http://{host}:{port}/"
 
-    Driver = locate(driver)
-
-    if Driver is None:
-        raise RuntimeError("The driver class {driver} cannot be found.")
+    drivers = {}
+    for tag, driver in competition:
+        drivers[tag] = locate(driver)
+        if drivers[tag] is None:
+            raise RuntimeError("The driver class {driver} cannot be found.")
 
     app = make_server(
-        competition_tag=competition_tag,
+        drivers=drivers,
         driver_endpoint=driver_endpoint,
-        Driver=Driver,
         workers=workers,
         pulsar_path=pulsar_path,
         umpire_host=umpire_host,
