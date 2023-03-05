@@ -9,7 +9,7 @@ from grpclib.client import Channel
 
 from doxa_competition.context import CompetitionContext
 from doxa_competition.evaluation.context import EvaluationContext
-from doxa_competition.evaluation.errors import AgentError
+from doxa_competition.evaluation.errors import AgentError, AgentTimeoutError
 from doxa_competition.events import EvaluationEvent
 from doxa_competition.proto.umpire.scheduling import (
     CompleteEvaluationRequest,
@@ -132,7 +132,7 @@ class EvaluationDriver(CompetitionContext):
                 },
             )
 
-    def _handle_agent_timeout_error(self, error: asyncio.TimeoutError) -> None:
+    def _handle_agent_timeout_error(self, error: Exception) -> None:
         extra = {}
         if len(self._context.nodes) == 1:
             node = self._context.nodes[0]
@@ -168,6 +168,8 @@ class EvaluationDriver(CompetitionContext):
         try:
             await self.handle(self._context)
         except asyncio.TimeoutError as e:
+            self._handle_agent_timeout_error(e)
+        except AgentTimeoutError as e:
             self._handle_agent_timeout_error(e)
         except AgentError as e:
             await self._handle_agent_error(e)
