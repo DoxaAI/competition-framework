@@ -1,7 +1,7 @@
 from typing import Dict
 
 from doxa_competition.event import Event
-from doxa_competition.event.handler import EventHandler, TopicHandler
+from doxa_competition.event.handler import EventHandler, Extension, TopicHandler
 from doxa_competition.events import AgentEvent
 
 
@@ -101,7 +101,8 @@ class EvaluationEventHandler(EventHandler):
         Args:
             event (Event): A DOXA event to be handled.
         """
-        raise NotImplementedError()
+
+        raise NotImplementedError
 
     def extract_routes(self) -> Dict[str, TopicHandler]:
         return {"evaluation-events": self.handle}
@@ -115,3 +116,20 @@ class ApatheticEvaluationEventHandler(EvaluationEventHandler):
 
     async def handle(self, event: Event) -> None:
         pass
+
+
+class BatchCompletionHandler(Extension):
+    def handle(self, event: Event):
+        """Handles evaluation batch completion events.
+
+        Args:
+            event (Event): The batch completion event.
+        """
+
+        raise NotImplementedError
+
+    def extract_routes(self):
+        return {"batch-completion-events": self.handle}
+
+    def get_extension_name() -> str:
+        return "batch-completion-handler"

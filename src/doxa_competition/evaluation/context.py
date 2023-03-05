@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import Dict, List, Optional
 
 from doxa_competition.evaluation.node import Node
 
@@ -12,6 +12,7 @@ class EvaluationContext:
     queued_at: datetime
     nodes: List[Node]
     extra: dict
+    timeouts: Dict[str, float]
 
     def __init__(
         self,
@@ -20,7 +21,7 @@ class EvaluationContext:
         queued_at: datetime,
         participants: List[dict],
         extra: dict = None,
-        timeout: float = None,
+        timeouts: Optional[Dict[str, float]] = None,
     ) -> None:
         self.id = id
         self.batch_id = batch_id
@@ -35,7 +36,7 @@ class EvaluationContext:
                 storage_endpoint=participant["storage_endpoint"],
                 upload_id=participant["upload_id"],
                 auth_token=participant["auth_token"],
-                timeout=timeout,
+                timeouts=timeouts,
             )
             for participant in participants
         ]

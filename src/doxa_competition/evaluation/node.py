@@ -1,5 +1,6 @@
+import asyncio
 import os
-from typing import AsyncIterable, List, Tuple
+from typing import AsyncIterable, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from grpclib.client import Channel
@@ -16,6 +17,8 @@ from doxa_competition.proto.nodeapi import (
 )
 from doxa_competition.utils import is_valid_filename
 
+DEFAULT_TIMEOUT = 30  # 30 secs
+
 
 class Node:
     """The DOXA Competition Framework representation of a Hearth node."""
@@ -28,6 +31,7 @@ class Node:
     storage_endpoint: str
     upload_id: int
     auth_token: str
+    timeouts: Dict[str, float]
 
     def __init__(
         self,
@@ -39,7 +43,7 @@ class Node:
         storage_endpoint: str,
         upload_id: int,
         auth_token: str,
-        timeout: float = None,
+        timeouts: Optional[Dict[str, float]] = None,
     ) -> None:
         self.participant_index = participant_index
         self.agent_id = agent_id
@@ -49,7 +53,19 @@ class Node:
         self.storage_endpoint = storage_endpoint
         self.upload_id = upload_id
         self.auth_token = auth_token
-        self.timeout = timeout
+
+        self.timeouts = {
+            "FETCH_AGENT": DEFAULT_TIMEOUT,
+            "RUN_COMMAND": DEFAULT_TIMEOUT,
+            "WRITE_STDIN": DEFAULT_TIMEOUT,
+            "READ_STDOUT": 10 * 60,  # 10 minutes
+            "READ_STDERR": 5,  # 5 seconds
+            "GET_FILE": DEFAULT_TIMEOUT,
+            "RELEASE": DEFAULT_TIMEOUT,
+        }
+
+        if timeouts is not None:
+            self.timeouts.update(timeouts)
 
         hostname, port = self.parse_endpoint(self.endpoint)
 
@@ -74,7 +90,7 @@ class Node:
                 gzip=self.is_gzip(),
             ),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=self.timeouts["FETCH_AGENT"],
         )
 
     async def run_command(self, args: List[str], environment: List[str] = None):
@@ -90,12 +106,14 @@ class Node:
                 env_vars=environment if environment is not None else [],
             ),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=self.timeouts["RUN_COMMAND"],
         )
 
     async def run_python_application(self, args: List[str] = None):
         if not is_valid_filename(self.agent_metadata.get("entrypoint", "")):
-            raise AgentError(message="Bad entrypoint filename.", agent_id=self.agent_id)
+            raise AgentError(
+                message="Bad entrypoint filename.", participant=self.participant_index
+            )
 
         return await self.run_command(
             args=[
@@ -105,13 +123,17 @@ class Node:
             + (args if args else [])
         )
 
-    async def write_to_stdin(self, line: str, end: str = "\n"):
+    async def write_to_stdin(
+        self, line: str, end: str = "\n", timeout: Optional[float] = None
+    ):
         async def wrapper():
             yield f"{line}{end}"
 
-        return await self.write_lines_to_stdin(wrapper())
+        return await self.write_lines_to_stdin(wrapper(), timeout)
 
-    async def write_lines_to_stdin(self, lines: AsyncIterable[str]):
+    async def write_lines_to_stdin(
+        self, lines: AsyncIterable[str], timeout: Optional[float] = None
+    ):
         async def wrapper():
             async for line in lines:
                 yield WriteInputRequest(data=line.encode("utf-8"))
@@ -119,36 +141,44 @@ class Node:
         return await self.node_api.write_input(
             wrapper(),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=timeout if timeout is not None else self.timeouts["WRITE_STDIN"],
         )
 
-    async def read_stdout(self):
+    async def read_stdout(self, timeout: Optional[float] = None):
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=True, stderr=False),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=timeout if timeout is not None else self.timeouts["READ_STDOUT"],
         ):
             yield response.line
 
-    async def read_stderr(self):
+    async def read_stderr(self, timeout: Optional[float] = None):
         async for response in self.node_api.capture_output(
             CaptureOutputRequest(stdout=False, stderr=True),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=timeout if timeout is not None else self.timeouts["READ_STDERR"],
         ):
             yield response.line
 
-    async def read_stdout_all(self) -> str:
-        return "\n".join([result async for result in self.read_stdout()])
+    async def read_stdout_all(self, timeout: Optional[float] = None) -> str:
+        return "\n".join([result async for result in self.read_stdout(timeout)])
 
-    async def read_stderr_all(self) -> str:
-        return "\n".join([result async for result in self.read_stderr()])
+    async def read_stderr_all(
+        self, timeout: Optional[float] = None, error_on_failure: bool = False
+    ) -> str:
+        try:
+            return "\n".join([result async for result in self.read_stderr(timeout)])
+        except asyncio.TimeoutError as e:
+            if error_on_failure:
+                raise e
+
+            return ""
 
     async def get_file(self, path: str):
         async for response in self.node_api.get_file(
             FileRequest(path=path),
             metadata={"x-hearth-auth": self.auth_token},
-            timeout=self.timeout,
+            timeout=self.timeouts["GET_FILE"],
         ):
             yield response.data
 
@@ -157,7 +187,7 @@ class Node:
             await self.node_api.shutdown_node(
                 ShutdownNodeRequest(),
                 metadata={"x-hearth-auth": self.auth_token},
-                timeout=self.timeout,
+                timeout=self.timeouts["RELEASE"],
             )
         finally:
             self.node_channel.close()

@@ -2,6 +2,7 @@ import asyncio
 import json
 import traceback
 from datetime import datetime
+from typing import Dict
 
 import pulsar
 from grpclib.client import Channel
@@ -27,8 +28,7 @@ class EvaluationDriver(CompetitionContext):
     autofetch: bool = True
     autoshutdown: bool = True
 
-    # gRPC request timeout
-    timeout: float = 10 * 60
+    timeouts: Dict[str, float] = {}
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class EvaluationDriver(CompetitionContext):
             context (EvaluationContext): The evaluation context giving access to the nodes.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _make_evaluation_context(self, event: EvaluationEvent) -> EvaluationContext:
         return EvaluationContext(
@@ -63,6 +63,7 @@ class EvaluationDriver(CompetitionContext):
             queued_at=datetime.fromisoformat(event.queued_at),
             participants=event.participants,
             extra=event.extra,
+            timeouts=self.timeouts,
         )
 
     def _handle_error(
@@ -96,24 +97,20 @@ class EvaluationDriver(CompetitionContext):
             )
 
     async def _handle_agent_error(self, error: AgentError):
-        if error.participant_index is not None:
-            node = self._context.nodes[error.participant_index]
-        elif error.agent_id is not None:
-            node = next(
-                (
-                    node
-                    for node in self._context.nodes
-                    if node.agent_id == error.agent_id
-                ),
-                None,
-            )
-        else:
-            node = None
+        if error.participant_index is None:
+            if len(self._context.nodes) > 1:
+                self._handle_error(
+                    error,
+                    error_type="AGENT_UNKNOWN",
+                    extra={},
+                )
+                return
+
+            error.participant_index = 0
+
+        node = self._context.nodes[error.participant_index]
 
         try:
-            if not node:
-                raise RuntimeError("Oops, a node is unknown!")
-
             self._handle_error(
                 error,
                 error_type="AGENT",
@@ -121,15 +118,31 @@ class EvaluationDriver(CompetitionContext):
                     "agent_id": node.agent_id,
                     "enrolment_id": node.enrolment_id,
                     "participant_index": node.participant_index,
-                    "stderr": await node.read_stderr_all(),
+                    "stderr": await node.read_stderr_all(error_on_failure=True),
                 },
             )
         except:
             self._handle_error(
                 error,
-                error_type="AGENT_UNKNOWN",
-                extra={},
+                error_type="AGENT",
+                extra={
+                    "agent_id": node.agent_id,
+                    "enrolment_id": node.enrolment_id,
+                    "participant_index": node.participant_index,
+                },
             )
+
+    def _handle_agent_timeout_error(self, error: asyncio.TimeoutError) -> None:
+        extra = {}
+        if len(self._context.nodes) == 1:
+            node = self._context.nodes[0]
+            extra = {
+                "agent_id": node.agent_id,
+                "enrolment_id": node.enrolment_id,
+                "participant_index": node.participant_index,
+            }
+
+        self._handle_error(error, error_type="AGENT_TIMEOUT", extra=extra)
 
     async def _handle(self, event: EvaluationEvent) -> None:
         """The internal handler for evaluation requests, running in a separate process.
@@ -155,7 +168,7 @@ class EvaluationDriver(CompetitionContext):
         try:
             await self.handle(self._context)
         except asyncio.TimeoutError as e:
-            self._handle_error(e, error_type="AGENT_TIMEOUT")
+            self._handle_agent_timeout_error(e)
         except AgentError as e:
             await self._handle_agent_error(e)
         except Exception as e:

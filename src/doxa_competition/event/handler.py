@@ -39,7 +39,7 @@ class EventHandler:
             Dict[str, TopicHandler]: The route mappings.
         """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Extension(EventHandler):
@@ -57,4 +57,4 @@ class Extension(EventHandler):
         Returns:
             str: The extension tag.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
