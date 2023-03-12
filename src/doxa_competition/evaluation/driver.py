@@ -118,7 +118,9 @@ class EvaluationDriver(CompetitionContext):
                     "agent_id": node.agent_id,
                     "enrolment_id": node.enrolment_id,
                     "participant_index": node.participant_index,
-                    "stderr": await node.read_stderr_all(error_on_failure=True),
+                    "stderr": await node.read_stderr_all(
+                        error_on_failure=True, line_limit=50
+                    ),
                 },
             )
         except:

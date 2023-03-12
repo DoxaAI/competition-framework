@@ -164,10 +164,25 @@ class Node:
         return "\n".join([result async for result in self.read_stdout(timeout)])
 
     async def read_stderr_all(
-        self, timeout: Optional[float] = None, error_on_failure: bool = False
+        self,
+        timeout: Optional[float] = None,
+        error_on_failure: bool = False,
+        line_limit: Optional[int] = None,
     ) -> str:
         try:
-            return "\n".join([result async for result in self.read_stderr(timeout)])
+            if line_limit is None:
+                return "\n".join([result async for result in self.read_stderr(timeout)])
+
+            lines = []
+            i = 0
+            async for result in self.read_stderr(timeout):
+                lines.append(result)
+                i += 1
+
+                if i > line_limit:
+                    break
+
+            return "\n".join(lines)
         except asyncio.TimeoutError as e:
             if error_on_failure:
                 raise e
